@@ -1,8 +1,6 @@
 package com.Spring_chat.Spring_chat.security;
 
-import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.SignatureException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -43,5 +41,9 @@ public class JwtService {
     }
     public long getAccessTokenExpirationSeconds() {
         return jwtConfig.getExpiration() / 1000;
+    }
+
+    public long getRefreshTokenExpirationMillis() {
+        return jwtConfig.getRefreshExpiration();
     }
 }

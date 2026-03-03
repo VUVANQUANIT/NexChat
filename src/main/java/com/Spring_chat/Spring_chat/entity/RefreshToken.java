@@ -6,10 +6,12 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -29,6 +31,10 @@ import java.time.Instant;
         name = "RefreshToken",
         uniqueConstraints = {
                 @UniqueConstraint(name = "unique_refresh_token_hash", columnNames = {"tokenHash"})
+        },
+        indexes = {
+                @Index(name = "idx_refresh_token_user_id", columnList = "userId"),
+                @Index(name = "idx_refresh_token_expires_at", columnList = "expiresAt")
         }
 )
 public class RefreshToken {
@@ -37,6 +43,10 @@ public class RefreshToken {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
+
+    @Version
+    @Column(name = "\"version\"", nullable = false)
+    private Long version;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "\"userId\"", nullable = false)
@@ -68,7 +78,7 @@ public class RefreshToken {
         return revokedAt != null;
     }
 
-    public boolean isExpired() {
-        return expiresAt != null && expiresAt.isBefore(Instant.now());
+    public boolean isExpired(Instant now) {
+        return expiresAt != null && expiresAt.isBefore(now);
     }
 }
