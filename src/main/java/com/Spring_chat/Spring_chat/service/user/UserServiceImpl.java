@@ -1,4 +1,4 @@
-package com.Spring_chat.Spring_chat.service.UserService;
+package com.Spring_chat.Spring_chat.service.user;
 
 import com.Spring_chat.Spring_chat.dto.ApiResponse;
 import com.Spring_chat.Spring_chat.dto.user.MyProfileUserDTO;
