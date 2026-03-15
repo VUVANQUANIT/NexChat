@@ -8,7 +8,9 @@ import com.Spring_chat.Spring_chat.exception.AppException;
 import com.Spring_chat.Spring_chat.exception.ErrorCode;
 import com.Spring_chat.Spring_chat.mappers.UserMapper;
 import com.Spring_chat.Spring_chat.repository.UserRepository;
+import com.Spring_chat.Spring_chat.security.AuthenticatedUser;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,15 +21,17 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
     @Override
     @Transactional(readOnly = true)
-    public ApiResponse<ProfileUserDTO> getUser(Long id) {
+    public ApiResponse<ProfileUserDTO> getUserProfile(Long id) {
         User user = findUserOrThrow(id);
         return ApiResponse.ok("OK", userMapper.userToUserDTO(user));
     }
 
     @Override
     @Transactional(readOnly = true)
-    public ApiResponse<MyProfileUserDTO> getMyProfile(Long id) {
-        User user = findUserOrThrow(id);
+    public ApiResponse<MyProfileUserDTO> getMyProfile() {
+        AuthenticatedUser authenticatedUser =(AuthenticatedUser) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = authenticatedUser.id();
+        User user = findUserOrThrow(userId);
         return ApiResponse.ok("OK", userMapper.userToMyUserDTO(user));
     }
 

@@ -5,6 +5,6 @@ import com.Spring_chat.Spring_chat.dto.user.MyProfileUserDTO;
 import com.Spring_chat.Spring_chat.dto.user.ProfileUserDTO;
 
 public interface UserService  {
-    ApiResponse<ProfileUserDTO> getUser(Long id);
-    ApiResponse<MyProfileUserDTO> getMyProfile(Long id);
+    ApiResponse<ProfileUserDTO> getUserProfile(Long id);
+    ApiResponse<MyProfileUserDTO> getMyProfile();
 }
