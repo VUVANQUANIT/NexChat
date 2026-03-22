@@ -5,6 +5,7 @@ import com.Spring_chat.Spring_chat.ENUM.UserStatus;
 import com.Spring_chat.Spring_chat.dto.ApiResponse;
 import com.Spring_chat.Spring_chat.dto.friendship.FriendRequestCreateRequestDTO;
 import com.Spring_chat.Spring_chat.dto.friendship.FriendRequestResponseDTO;
+import com.Spring_chat.Spring_chat.dto.friendship.FriendResponseDTO;
 import com.Spring_chat.Spring_chat.entity.Friendship;
 import com.Spring_chat.Spring_chat.entity.User;
 import com.Spring_chat.Spring_chat.exception.AppException;
@@ -15,6 +16,8 @@ import com.Spring_chat.Spring_chat.repository.UserRepository;
 import com.Spring_chat.Spring_chat.service.common.CurrentUserProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -62,5 +65,31 @@ public class FriendShipServiceImpl implements FriendShipService {
         friendshipRepository.save(friendship);
 
         return ApiResponse.ok("Friend request sent", friendShipMapper.toFriendRequestResponseDTO(friendship));
+    }
+
+    @Override
+    public ApiResponse<List<FriendResponseDTO>> getFriendRequests() {
+        User user = currentUserProvider.findCurrentUserOrThrow();
+        List<FriendResponseDTO> responseDTOS = friendshipRepository.findAllRequestFriends(
+                user.getId(),
+                FriendshipStatus.PENDING
+        );
+        if (responseDTOS.isEmpty()) {
+            return ApiResponse.ok("Không có lời mời kết bạn", responseDTOS);
+        }
+        return ApiResponse.ok("Danh sách lời mời kết bạn", responseDTOS);
+    }
+
+    @Override
+    public ApiResponse<List<FriendResponseDTO>> getSentFriendRequests() {
+        User user = currentUserProvider.findCurrentUserOrThrow();
+        List<FriendResponseDTO> responseDTOS = friendshipRepository.findAllSentRequestFriends(
+                user.getId(),
+                FriendshipStatus.PENDING
+        );
+        if (responseDTOS.isEmpty()) {
+            return ApiResponse.ok("Không có lời mời đã gửi", responseDTOS);
+        }
+        return ApiResponse.ok("Danh sách lời mời đã gửi", responseDTOS);
     }
 }
