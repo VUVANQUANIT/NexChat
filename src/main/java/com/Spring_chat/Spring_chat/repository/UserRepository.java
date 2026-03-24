@@ -1,5 +1,6 @@
 package com.Spring_chat.Spring_chat.repository;
 
+import com.Spring_chat.Spring_chat.ENUM.UserStatus;
 import com.Spring_chat.Spring_chat.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -10,4 +11,5 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
     boolean existsByUsername(String username);
     boolean existsByEmail(String email);
+    boolean existsByIdAndStatus(Long id, UserStatus status);
 }
