@@ -3,10 +3,7 @@ package com.Spring_chat.Spring_chat.service.friendship;
 import com.Spring_chat.Spring_chat.ENUM.FriendshipStatus;
 import com.Spring_chat.Spring_chat.ENUM.UserStatus;
 import com.Spring_chat.Spring_chat.dto.ApiResponse;
-import com.Spring_chat.Spring_chat.dto.friendship.AcceptFriendResponseDTO;
-import com.Spring_chat.Spring_chat.dto.friendship.FriendRequestCreateRequestDTO;
-import com.Spring_chat.Spring_chat.dto.friendship.FriendRequestResponseDTO;
-import com.Spring_chat.Spring_chat.dto.friendship.FriendResponseDTO;
+import com.Spring_chat.Spring_chat.dto.friendship.*;
 import com.Spring_chat.Spring_chat.entity.Friendship;
 import com.Spring_chat.Spring_chat.entity.User;
 import com.Spring_chat.Spring_chat.exception.AppException;
@@ -131,4 +128,33 @@ public class FriendShipServiceImpl implements FriendShipService {
         ApiResponse<AcceptFriendResponseDTO> response = new ApiResponse<>();
         return response.ok("Friend request accepted", responseDTO);
     }
+    @Override
+    @Transactional
+    public ApiResponse<RejectFriendResponseDTO> rejectFriendShip(Long id){
+        User user = currentUserProvider.findCurrentUserOrThrow();
+
+        Friendship friendship = friendshipRepository.findById(id).orElseThrow(
+                () -> new AppException(ErrorCode.RESOURCE_NOT_FOUND," Friendship ID không tồn tại")
+        );
+        log.info("Search ID Friendship: {}", friendship.getId());
+        if (!friendship.getStatus().equals(FriendshipStatus.PENDING)) {
+            throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED,"Trạng thái lời mời phải là Pending");
+        }
+        log.info("Status Friendship id {} : {}", friendship.getId(), friendship.getStatus());
+        if(!friendship.getAddressee().getId().equals(user.getId())){
+            throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED,"Người nhận phải là mới có thể từ chối lời mời");
+        }
+
+        friendship.setStatus(FriendshipStatus.REJECTED);
+        friendship.setUpdatedAt(Instant.now());
+        friendshipRepository.save(friendship);
+        log.info("Status Friendship id {} : {}", friendship.getId(), friendship.getStatus());
+        RejectFriendResponseDTO responseDTO = new RejectFriendResponseDTO();
+        responseDTO.setId(friendship.getId());
+        responseDTO.setUpdatedAt(friendship.getUpdatedAt());
+        log.info("RejectFriendResponseDTO {}", responseDTO);
+        ApiResponse<RejectFriendResponseDTO> response = new ApiResponse<>();
+        return response.ok("Friend request rejected", responseDTO);
+    }
+
 }

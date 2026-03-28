@@ -1,10 +1,7 @@
 package com.Spring_chat.Spring_chat.controller.friendship;
 
 import com.Spring_chat.Spring_chat.dto.ApiResponse;
-import com.Spring_chat.Spring_chat.dto.friendship.AcceptFriendResponseDTO;
-import com.Spring_chat.Spring_chat.dto.friendship.FriendRequestCreateRequestDTO;
-import com.Spring_chat.Spring_chat.dto.friendship.FriendRequestResponseDTO;
-import com.Spring_chat.Spring_chat.dto.friendship.FriendResponseDTO;
+import com.Spring_chat.Spring_chat.dto.friendship.*;
 import com.Spring_chat.Spring_chat.service.friendship.FriendShipService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -34,5 +31,9 @@ public class FriendShipController {
     @PostMapping("/requests/{id}/accept")
     public ResponseEntity<ApiResponse<AcceptFriendResponseDTO>> acceptRequestFriendShip(@PathVariable("id") Long id){
         return ResponseEntity.ok(friendShipService.acceptFriend(id));
+    }
+    @PostMapping("/requests/{id}/reject")
+    public ResponseEntity<ApiResponse<RejectFriendResponseDTO>> rejectRequestFriendShip(@PathVariable("id") Long id){
+        return ResponseEntity.ok(friendShipService.rejectFriendShip(id));
     }
 }
