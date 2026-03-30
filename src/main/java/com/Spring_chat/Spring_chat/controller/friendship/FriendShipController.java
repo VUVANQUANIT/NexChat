@@ -36,7 +36,7 @@ public class FriendShipController {
     public ResponseEntity<ApiResponse<RejectFriendResponseDTO>> rejectRequestFriendShip(@PathVariable("id") Long id){
         return ResponseEntity.ok(friendShipService.rejectFriendShip(id));
     }
-    @PostMapping(" /friendships/{userId}/block")
+    @PostMapping("/friendships/{userId}/block")
     public ResponseEntity<ApiResponse<FriendResponseBlockDTO>> blockFriendship(@PathVariable("userId") Long id){
         return ResponseEntity.ok(friendShipService.blockFriendship(id));
     }
