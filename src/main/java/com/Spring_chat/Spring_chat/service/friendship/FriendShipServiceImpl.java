@@ -135,6 +135,41 @@ public class FriendShipServiceImpl implements FriendShipService {
         return response.ok("Friend request rejected", responseDTO);
     }
 
+    @Override
+    @Transactional
+    public ApiResponse<FriendResponseBlockDTO> blockFriendship(Long targetUserId) {
+        User blocker = currentUserProvider.findCurrentUserOrThrow();
+        User target  = currentUserProvider.findUserOrThrow(targetUserId);
+
+        if (blocker.getId().equals(target.getId())) {
+            throw new AppException(ErrorCode.CANNOT_BLOCK_SELF, "Không thể tự block chính mình");
+        }
+
+
+        Friendship friendship = friendshipRepository
+                .findBetweenUsers(blocker.getId(), target.getId())
+                .map(existing -> {
+                    existing.setRequester(blocker);
+                    existing.setAddressee(target);
+                    existing.setStatus(FriendshipStatus.BLOCKED);
+                    return existing;
+                })
+                .orElseGet(() -> Friendship.builder()
+                        .requester(blocker)
+                        .addressee(target)
+                        .status(FriendshipStatus.BLOCKED)
+                        .build()
+                );
+
+        friendshipRepository.save(friendship);
+
+        FriendResponseBlockDTO dto = new FriendResponseBlockDTO();
+        dto.setBlockedUserId(target.getId());
+        dto.setFriendshipStatus(FriendshipStatus.BLOCKED);
+        return ApiResponse.ok("User blocked", dto);
+    }
+
+
     private Friendship requirePendingAddressee(Long id, User user, String notAddresseeMessage) {
         Friendship friendship = friendshipRepository.findById(id).orElseThrow(
                 () -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, " Friendship ID không tồn tại")
