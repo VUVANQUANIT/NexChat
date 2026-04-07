@@ -33,8 +33,8 @@ import static org.mockito.BDDMockito.*;
  *  - getMyProfile:   reads userId from SecurityContext (not from caller)
  *  - updateMyProfile: partial updates, trim, null-field no-op
  *
- * SecurityContext is set up directly (no mock) so tests exercise the
- * real principal-extraction code path in findCurrentUserOrThrow().
+ * CurrentUserProvider là real instance (không mock) dùng chung userRepository mock,
+ * SecurityContext được set thủ công → test đi qua đúng code path thật của findCurrentUserOrThrow().
  */
 @ExtendWith(MockitoExtension.class)
 class UserServiceImplTest {
@@ -42,8 +42,15 @@ class UserServiceImplTest {
     @Mock private UserRepository userRepository;
     @Mock private UserMapper     userMapper;
 
-    @InjectMocks
-    private UserServiceImpl userService;
+    // Real instance (không @Mock) — dùng userRepository mock bên trong
+    private CurrentUserProvider currentUserProvider;
+    private UserServiceImpl     userService;
+
+    @BeforeEach
+    void setUpService() {
+        currentUserProvider = new CurrentUserProvider(userRepository);
+        userService = new UserServiceImpl(userRepository, userMapper, currentUserProvider);
+    }
 
     // ─── SecurityContext helpers ──────────────────────────────────────────────
 
