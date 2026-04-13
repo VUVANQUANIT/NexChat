@@ -315,4 +315,79 @@ class ConversationServiceImplTest {
                     .isEqualTo(ErrorCode.FORBIDDEN);
         }
     }
+
+    @Nested
+    @DisplayName("updateConversation")
+    class UpdateConversation {
+
+        @Test
+        @DisplayName("update thành công bởi owner")
+        void ownerShouldUpdateSuccessfully() {
+            setCurrentUser(1L, "alice");
+            User alice = User.builder().id(1L).username("alice").roles(Collections.emptySet()).build();
+            Conversation conversation = Conversation.builder()
+                    .id(5L)
+                    .type(ConversationType.GROUP)
+                    .owner(alice)
+                    .title("Old Title")
+                    .build();
+
+            com.Spring_chat.Web_chat.dto.conversations.UpdateConversationDTO request =
+                    com.Spring_chat.Web_chat.dto.conversations.UpdateConversationDTO.builder()
+                            .title("  New Title  ")
+                            .avatarUrl("  https://new.url  ")
+                            .build();
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(alice));
+            given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
+
+            ApiResponse<com.Spring_chat.Web_chat.dto.conversations.UpdateConversationDTO> response =
+                    conversationService.updateConversation(5L, request);
+
+            assertThat(response.isSuccess()).isTrue();
+            assertThat(response.getData().getTitle()).isEqualTo("New Title");
+            assertThat(response.getData().getAvatarUrl()).isEqualTo("https://new.url");
+            then(conversationRepository).should().save(conversation);
+        }
+
+        @Test
+        @DisplayName("PRIVATE conversation không được update -> BUSINESS_RULE_VIOLATED")
+        void privateConversationShouldThrow() {
+            setCurrentUser(1L, "alice");
+            User alice = User.builder().id(1L).username("alice").build();
+            Conversation conversation = Conversation.builder()
+                    .id(5L)
+                    .type(ConversationType.PRIVATE)
+                    .build();
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(alice));
+            given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
+
+            assertThatThrownBy(() -> conversationService.updateConversation(5L, new com.Spring_chat.Web_chat.dto.conversations.UpdateConversationDTO()))
+                    .isInstanceOf(AppException.class)
+                    .extracting(e -> ((AppException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.BUSINESS_RULE_VIOLATED);
+        }
+
+        @Test
+        @DisplayName("không phải owner/admin -> FORBIDDEN")
+        void nonOwnerNonAdminShouldThrowForbidden() {
+            setCurrentUser(2L, "bob");
+            User alice = User.builder().id(1L).username("alice").build();
+            User bob = User.builder().id(2L).username("bob").roles(Collections.emptySet()).build();
+            Conversation conversation = Conversation.builder()
+                    .id(5L)
+                    .type(ConversationType.GROUP)
+                    .owner(alice)
+                    .build();
+
+            given(userRepository.findById(2L)).willReturn(Optional.of(bob));
+            given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
+
+            assertThatThrownBy(() -> conversationService.updateConversation(5L, new com.Spring_chat.Web_chat.dto.conversations.UpdateConversationDTO()))
+                    .isInstanceOf(AppException.class)
+                    .extracting(e -> ((AppException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+        }
+    }
 }

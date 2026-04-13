@@ -183,6 +183,44 @@ public class ConversationServiceImpl implements ConversationService {
         return ApiResponse.ok("OK", detailDTO);
     }
 
+    @Override
+    @Transactional
+    public ApiResponse<UpdateConversationDTO> updateConversation(Long id, UpdateConversationDTO updateConversationDTO) {
+        User currentUser = currentUserProvider.findCurrentUserOrThrow();
+        Conversation conversation = conversationRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Conversation not found"));
+
+        if (conversation.getType() == ConversationType.PRIVATE) {
+            throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED, "Cuộc hội thoại PRIVATE không có tiêu đề để sửa");
+        }
+
+        boolean isAdmin = currentUser.getRoles().stream()
+                .anyMatch(role -> role.getName().equals(com.Spring_chat.Web_chat.enums.RoleName.ROLE_ADMIN));
+
+        boolean isOwner = conversation.getOwner() != null && conversation.getOwner().getId().equals(currentUser.getId());
+
+        if (!isOwner && !isAdmin) {
+            throw new AppException(ErrorCode.FORBIDDEN, "Chỉ chủ nhóm hoặc Admin mới được phép chỉnh sửa");
+        }
+
+        if (updateConversationDTO.getTitle() != null && !updateConversationDTO.getTitle().trim().isEmpty()) {
+            conversation.setTitle(updateConversationDTO.getTitle().trim());
+        }
+        if (updateConversationDTO.getAvatarUrl() != null) {
+            conversation.setAvatarUrl(updateConversationDTO.getAvatarUrl().trim());
+        }
+
+        conversationRepository.save(conversation);
+
+        UpdateConversationDTO response = UpdateConversationDTO.builder()
+                .id(conversation.getId())
+                .title(conversation.getTitle())
+                .avatarUrl(conversation.getAvatarUrl())
+                .build();
+
+        return ApiResponse.ok("Conversation updated", response);
+    }
+
     private ConversationSummaryDTO toSummaryDTO(ConversationRowProjection row) {
         ConversationSummaryDTO dto = new ConversationSummaryDTO();
         dto.setId(row.getId());

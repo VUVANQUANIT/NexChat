@@ -5,6 +5,7 @@ import com.Spring_chat.Web_chat.dto.conversations.ConversationDetailDTO;
 import com.Spring_chat.Web_chat.dto.conversations.ConversationListDTO;
 import com.Spring_chat.Web_chat.dto.conversations.CreateConversationsDTO;
 import com.Spring_chat.Web_chat.dto.conversations.CreateConversationsResponseDTO;
+import com.Spring_chat.Web_chat.dto.conversations.UpdateConversationDTO;
 import com.Spring_chat.Web_chat.service.conversation.ConversationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -46,5 +47,12 @@ public class ConversationController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<ConversationDetailDTO>> getConversationDetail(@PathVariable("id") Long id) {
         return ResponseEntity.ok(conversationService.getConversationDetail(id));
+    }
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<ApiResponse<UpdateConversationDTO>> updateConversation(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody UpdateConversationDTO updateConversationDTO) {
+        return ResponseEntity.ok(conversationService.updateConversation(id, updateConversationDTO));
     }
 }
