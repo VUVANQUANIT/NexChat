@@ -1,10 +1,7 @@
 package com.Spring_chat.Web_chat.controller.conversation;
 
 import com.Spring_chat.Web_chat.dto.ApiResponse;
-import com.Spring_chat.Web_chat.dto.conversations.ConversationDetailDTO;
-import com.Spring_chat.Web_chat.dto.conversations.ConversationListDTO;
-import com.Spring_chat.Web_chat.dto.conversations.CreateConversationsDTO;
-import com.Spring_chat.Web_chat.dto.conversations.CreateConversationsResponseDTO;
+import com.Spring_chat.Web_chat.dto.conversations.*;
 import com.Spring_chat.Web_chat.service.conversation.ConversationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -46,5 +43,18 @@ public class ConversationController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<ConversationDetailDTO>> getConversationDetail(@PathVariable("id") Long id) {
         return ResponseEntity.ok(conversationService.getConversationDetail(id));
+    }
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<ApiResponse<UpdateConversationDTO>> updateConversation(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody UpdateConversationDTO updateConversationDTO) {
+        return ResponseEntity.ok(conversationService.updateConversation(id, updateConversationDTO));
+    }
+    @PostMapping("/{id}/participants")
+    public ResponseEntity<ApiResponse<ListUserDTO>> addParticipantToConversation(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody ListUserDTO listUserDTO) {
+        return ResponseEntity.ok(conversationService.addUserToConversation(id, listUserDTO));
     }
 }
