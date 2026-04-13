@@ -248,6 +248,59 @@ public class ConversationServiceImpl implements ConversationService {
         return ApiResponse.ok("Thêm thành công người dùng vào cuộc hội thoại", listUserDTO);
     }
 
+    @Override
+    @Transactional
+    public ApiResponse<Void> removeParticipantFromConversation(Long conversationId, Long userId) {
+        User currentUser = currentUserProvider.findCurrentUserOrThrow();
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy cuộc hội thoại"));
+
+        if (conversation.getType() == ConversationType.PRIVATE) {
+            throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED, "Không thể xóa thành viên khỏi cuộc hội thoại PRIVATE");
+        }
+
+        ConversationParticipant targetParticipant = conversationParticipantRepository
+                .findByConversation_IdAndUser_Id(conversationId, userId)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Người dùng không phải thành viên của nhóm"));
+
+        if (targetParticipant.getLeftAt() != null) {
+             return ApiResponse.ok("User already left", null); // Idempotent: already left
+        }
+
+        boolean isSelf = currentUser.getId().equals(userId);
+        boolean isOwner = conversation.getOwner() != null && conversation.getOwner().getId().equals(currentUser.getId());
+
+        if (!isSelf && !isOwner) {
+            throw new AppException(ErrorCode.FORBIDDEN, "Bạn không có quyền kick thành viên này");
+        }
+
+        // Thực hiện rời nhóm/kick
+        targetParticipant.setLeftAt(Instant.now());
+        conversationParticipantRepository.save(targetParticipant);
+
+        // Nếu chủ nhóm rời đi -> chuyển quyền owner
+        if (isSelf && isOwner) {
+            transferOwnership(conversation);
+        }
+
+        return ApiResponse.ok("Participant removed", null);
+    }
+
+    private void transferOwnership(Conversation conversation) {
+        // Tìm người còn lại gia nhập sớm nhất
+        Optional<ConversationParticipant> nextOwnerParticipant = conversationParticipantRepository
+                .findFirstByConversation_IdAndLeftAtIsNullOrderByJoinedAtAsc(conversation.getId());
+
+        if (nextOwnerParticipant.isPresent()) {
+            conversation.setOwner(nextOwnerParticipant.get().getUser());
+            conversationRepository.save(conversation);
+        } else {
+            // Không còn ai trong nhóm -> Xóa owner hoặc có thể mark conversation là INACTIVE
+            conversation.setOwner(null);
+            conversationRepository.save(conversation);
+        }
+    }
+
     private void addParticipantToConversation(Conversation conversation, Long participantId, User currentUser) {
         if (participantId.equals(currentUser.getId())) {
             return; // Chủ nhóm đã ở trong nhóm rồi

@@ -12,4 +12,5 @@ public interface ConversationService {
     ApiResponse<ConversationDetailDTO> getConversationDetail(Long conversationId);
     ApiResponse<UpdateConversationDTO> updateConversation(Long id, UpdateConversationDTO updateConversationDTO);
     ApiResponse<ListUserDTO> addUserToConversation(Long conversationId, ListUserDTO listUserDTO);
+    ApiResponse<Void> removeParticipantFromConversation(Long conversationId, Long userId);
 }

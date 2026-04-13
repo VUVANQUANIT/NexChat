@@ -57,4 +57,11 @@ public class ConversationController {
             @Valid @RequestBody ListUserDTO listUserDTO) {
         return ResponseEntity.ok(conversationService.addUserToConversation(id, listUserDTO));
     }
+
+    @DeleteMapping("/{id}/participants/{userId}")
+    public ResponseEntity<ApiResponse<Void>> removeParticipant(
+            @PathVariable("id") Long id,
+            @PathVariable("userId") Long userId) {
+        return ResponseEntity.ok(conversationService.removeParticipantFromConversation(id, userId));
+    }
 }

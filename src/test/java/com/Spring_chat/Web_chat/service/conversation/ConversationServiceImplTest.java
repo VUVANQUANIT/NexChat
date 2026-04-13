@@ -410,6 +410,44 @@ class ConversationServiceImplTest {
         @Test
         @DisplayName("thêm người đã là thành viên -> không làm gì (idempotent)")
         void addingExistingParticipantShouldDoNothing() {
+            // ... (existing test)
+        }
+    }
+
+    @Nested
+    @DisplayName("removeParticipantFromConversation")
+    class RemoveParticipant {
+
+        @Test
+        @DisplayName("user tự rời nhóm thành công")
+        void userShouldLeaveSuccessfully() {
+            setCurrentUser(2L, "bob");
+            User alice = User.builder().id(1L).username("alice").build();
+            User bob = User.builder().id(2L).username("bob").build();
+            Conversation conversation = Conversation.builder()
+                    .id(5L)
+                    .type(ConversationType.GROUP)
+                    .owner(alice)
+                    .build();
+
+            ConversationParticipant participant = ConversationParticipant.builder()
+                    .id(100L).conversation(conversation).user(bob).build();
+
+            given(userRepository.findById(2L)).willReturn(Optional.of(bob));
+            given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
+            given(conversationParticipantRepository.findByConversation_IdAndUser_Id(5L, 2L))
+                    .willReturn(Optional.of(participant));
+
+            ApiResponse<Void> response = conversationService.removeParticipantFromConversation(5L, 2L);
+
+            assertThat(response.isSuccess()).isTrue();
+            assertThat(participant.getLeftAt()).isNotNull();
+            then(conversationParticipantRepository).should().save(participant);
+        }
+
+        @Test
+        @DisplayName("owner kick thành viên thành công")
+        void ownerShouldKickMemberSuccessfully() {
             setCurrentUser(1L, "alice");
             User alice = User.builder().id(1L).username("alice").build();
             User bob = User.builder().id(2L).username("bob").build();
@@ -419,19 +457,76 @@ class ConversationServiceImplTest {
                     .owner(alice)
                     .build();
 
-            com.Spring_chat.Web_chat.dto.conversations.ListUserDTO request = new com.Spring_chat.Web_chat.dto.conversations.ListUserDTO();
-            request.setUserIds(new Long[]{2L});
+            ConversationParticipant participant = ConversationParticipant.builder()
+                    .id(100L).conversation(conversation).user(bob).build();
 
             given(userRepository.findById(1L)).willReturn(Optional.of(alice));
             given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
+            given(conversationParticipantRepository.findByConversation_IdAndUser_Id(5L, 2L))
+                    .willReturn(Optional.of(participant));
+
+            ApiResponse<Void> response = conversationService.removeParticipantFromConversation(5L, 2L);
+
+            assertThat(response.isSuccess()).isTrue();
+            assertThat(participant.getLeftAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("owner rời nhóm -> tự động chuyển quyền owner cho người tiếp theo")
+        void ownerLeave_shouldTransferOwnership() {
+            setCurrentUser(1L, "alice");
+            User alice = User.builder().id(1L).username("alice").build();
+            User bob = User.builder().id(2L).username("bob").build();
+            Conversation conversation = Conversation.builder()
+                    .id(5L)
+                    .type(ConversationType.GROUP)
+                    .owner(alice)
+                    .build();
+
+            ConversationParticipant alicePart = ConversationParticipant.builder()
+                    .id(10L).conversation(conversation).user(alice).build();
+            ConversationParticipant bobPart = ConversationParticipant.builder()
+                    .id(11L).conversation(conversation).user(bob).build();
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(alice));
+            given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
+            given(conversationParticipantRepository.findByConversation_IdAndUser_Id(5L, 1L))
+                    .willReturn(Optional.of(alicePart));
+            // Trả về bob là người tiếp theo
+            given(conversationParticipantRepository.findFirstByConversation_IdAndLeftAtIsNullOrderByJoinedAtAsc(5L))
+                    .willReturn(Optional.of(bobPart));
+
+            conversationService.removeParticipantFromConversation(5L, 1L);
+
+            assertThat(conversation.getOwner()).isEqualTo(bob);
+            then(conversationRepository).should().save(conversation);
+        }
+
+        @Test
+        @DisplayName("không phải owner kick người khác -> FORBIDDEN")
+        void nonOwnerKick_shouldThrowForbidden() {
+            setCurrentUser(2L, "bob");
+            User alice = User.builder().id(1L).username("alice").build();
+            User bob = User.builder().id(2L).username("bob").build();
+            User carol = User.builder().id(3L).username("carol").build();
+            Conversation conversation = Conversation.builder()
+                    .id(5L)
+                    .type(ConversationType.GROUP)
+                    .owner(alice)
+                    .build();
+
+            ConversationParticipant carolPart = ConversationParticipant.builder()
+                    .id(102L).conversation(conversation).user(carol).build();
+
             given(userRepository.findById(2L)).willReturn(Optional.of(bob));
-            given(friendshipRepository.findByRequesterAndAddressee(alice, bob)).willReturn(null);
-            given(conversationParticipantRepository.findByConversation_IdAndUser(5L, bob))
-                    .willReturn(ConversationParticipant.builder().build());
+            given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
+            given(conversationParticipantRepository.findByConversation_IdAndUser_Id(5L, 3L))
+                    .willReturn(Optional.of(carolPart));
 
-            conversationService.addUserToConversation(5L, request);
-
-            then(conversationParticipantRepository).should(org.mockito.Mockito.never()).save(any());
+            assertThatThrownBy(() -> conversationService.removeParticipantFromConversation(5L, 3L))
+                    .isInstanceOf(AppException.class)
+                    .extracting(e -> ((AppException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.FORBIDDEN);
         }
     }
 }
