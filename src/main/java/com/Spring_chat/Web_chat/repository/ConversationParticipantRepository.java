@@ -100,4 +100,7 @@ public interface ConversationParticipantRepository extends JpaRepository<Convers
     );
 
     ConversationParticipant findByConversation_IdAndUser(Long conversationId, User user);
+    java.util.Optional<ConversationParticipant> findByConversation_IdAndUser_Id(Long conversationId, Long userId);
+
+    java.util.Optional<ConversationParticipant> findFirstByConversation_IdAndLeftAtIsNullOrderByJoinedAtAsc(Long conversationId);
 }

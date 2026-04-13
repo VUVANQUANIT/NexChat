@@ -927,16 +927,46 @@ Không có body.
 
 ### 4.6 `DELETE /api/conversations/{id}/participants/{userId}`
 
-**Mục tiêu:** Rời khỏi nhóm hoặc kick thành viên.
+**Mục tiêu nghiệp vụ:**  
+User chủ động rời khỏi nhóm hoặc chủ nhóm (`owner`) thực hiện xóa thành viên khỏi cuộc hội thoại (`kick`).
+
+**Path params:**
+
+| Param | Kiểu | Mô tả |
+|---|---|---|
+| `id` | Long | ID của cuộc hội thoại |
+| `userId` | Long | ID của người dùng cần xóa hoặc người đang thực hiện rời nhóm |
+
+**Request:** Không body.
 
 **Response: `204 No Content`**
 
 **Business rules:**
-- Nếu `userId == currentUser` → rời nhóm (set `leftAt = now`).
-- Nếu `userId != currentUser` → kick (chỉ `owner` được kick).
-- Nếu `owner` rời nhóm:
-  - Chuyển quyền owner sang participant cũ nhất còn lại.
-  - Nếu không còn ai → đóng conversation.
+1. **Kiểm tra quyền hạn:**
+   - Nếu `userId == currentUser`: Đây là hành động **Rời nhóm**. Cho phép mọi thành viên.
+   - Nếu `userId != currentUser`: Đây là hành động **Kick**. Chỉ `owner` của cuộc hội thoại mới được phép thực hiện. Nếu không phải owner → trả về `403 FORBIDDEN`.
+2. **Loại hội thoại:**
+   - Chỉ áp dụng cho cuộc hội thoại `GROUP`. Hội thoại `PRIVATE` không hỗ trợ endpoint này → `422 BUSINESS_RULE_VIOLATED`.
+3. **Xử lý logic (Soft Exit):**
+   - Không xóa bản ghi trong bảng `conversation_participant`.
+   - Cập nhật trường `leftAt = current_timestamp` cho participant tương ứng.
+   - Sau khi `leftAt` được set, user này sẽ không còn nhận được tin nhắn mới và không thấy cuộc hội thoại trong danh sách active (trừ khi có logic xem lại archive).
+4. **Xử lý khi `owner` rời nhóm:**
+   - Nếu người rời nhóm là `owner` hiện tại:
+     - Hệ thống tự động tìm thành viên còn lại có thời gian gia nhập (`joinedAt`) sớm nhất để chỉ định làm `owner` mới.
+     - Nếu cuộc hội thoại không còn thành viên nào khác → Chuyển trạng thái cuộc hội thoại sang `INACTIVE` hoặc đóng vĩnh viễn.
+5. **Tính Idempotent:**
+   - Nếu user đã rời nhóm từ trước (`leftAt` đã có giá trị) → trả về `204` ngay lập tức.
+6. **Realtime Event:**
+   - Push event `PARTICIPANT_LEFT` (nếu tự rời) hoặc `PARTICIPANT_KICKED` (nếu bị kick) đến `/topic/conversations/{id}` để cập nhật danh sách thành viên cho các máy máy khách khác.
+
+**Lỗi:**
+
+| Code | Trường hợp |
+|---|---|
+| `403 FORBIDDEN` | Kick thành viên khác khi không phải là owner |
+| `404 RESOURCE_NOT_FOUND` | `id` (Conversation) không tồn tại hoặc `userId` không phải là thành viên nhóm |
+| `422 BUSINESS_RULE_VIOLATED` | Thực hiện trên cuộc hội thoại `PRIVATE` |
 
 ---
 
