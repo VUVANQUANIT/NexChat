@@ -54,15 +54,22 @@ jobs:
 
           genai.configure(api_key=api_key)
           
-          # Sử dụng gemini-2.0-flash - model cực nhanh và thông minh có trong danh sách của bạn
-          model_name = "gemini-2.0-flash"
+          # Danh sách model ưu tiên từ mạnh nhất đến ổn định nhất
+          # Dựa trên danh sách "khủng" của bạn
+          priority_models = [
+              "gemini-2.5-pro", 
+              "gemini-2.0-pro",
+              "gemini-1.5-pro",
+              "gemini-pro-latest",
+              "gemini-2.5-flash",
+              "gemini-2.0-flash",
+              "gemini-1.5-flash",
+              "gemini-flash-latest"
+          ]
           
-          try:
-              model = genai.GenerativeModel(model_name)
-          except Exception as e:
-              # Fallback sang một model chắc chắn có khác nếu cần
-              model = genai.GenerativeModel("gemini-pro-latest")
-
+          review_text = ""
+          success = False
+          
           try:
               with open("pr_diff.txt", "r", encoding="utf-8") as f:
                   diff_content = f.read()
@@ -76,37 +83,44 @@ jobs:
               exit(0)
 
           prompt = f"""
-          Bạn là một Senior Software Engineer và Architect chuyên nghiệp, có tâm.
-          Nhiệm vụ của bạn là review đoạn mã nguồn (diff) dưới đây cho một dự án Spring Boot (Java).
-
+          Bạn là một Senior Software Engineer và Architect chuyên nghiệp.
+          Nhiệm vụ của bạn là review đoạn mã nguồn (diff) dự án Spring Boot (Java).
           Hãy phân tích cực kỳ kỹ lưỡng và đưa ra nhận xét theo các tiêu chuẩn production:
-          1. **Lỗi Logic & Bug**: Các trường hợp biên (edge cases), lỗi sai luồng nghiệp vụ.
-          2. **Bảo mật (Security)**: SQL Injection, lộ thông tin nhạy cảm, lỗi phân quyền (RBAC), XSS, v.v.
-          3. **Hiệu năng (Performance)**: N+1 query trong JPA/Hibernate, rò rỉ bộ nhớ, vòng lặp dư thừa.
-          4. **Clean Code & Coding Standards**: Đặt tên (Naming), độ phức tạp của hàm, tuân thủ SOLID và Design Patterns.
-          5. **Khả năng bảo trì & Test**: Code có dễ hiểu không? Có cần bổ sung Unit Test không?
-
-          Yêu cầu về hình thức phản hồi:
-          - Ngôn ngữ: **Tiếng Việt** (Chuyên nghiệp, ngắn gọn, súc tích).
-          - Nếu thấy vấn đề, hãy chỉ rõ file và đoạn code tương ứng.
-          - Nếu code tốt, hãy đưa ra lời khen ngợi xứng đáng và chỉ ra điểm bạn thích.
-          - Định dạng: Markdown (sử dụng tiêu đề, danh sách gạch đầu dòng, code block).
-
-          Nội dung Diff cần review:
+          1. Lỗi Logic & Bug.
+          2. Bảo mật (Security).
+          3. Hiệu năng (Performance).
+          4. Clean Code & SOLID.
+          
+          Yêu cầu: Tiếng Việt, chuyên nghiệp, có ví dụ code nếu cần sửa.
+          
+          Nội dung Diff:
           {diff_content}
           """
 
-          try:
-              response = model.generate_content(prompt)
-              review_text = response.text
-          except Exception as e:
-              review_text = f"Đã có lỗi xảy ra khi gọi Gemini API ({model_name}): {str(e)}"
-              # Thử liệt kê các model khả dụng để người dùng debug
+          last_error = ""
+          for model_name in priority_models:
               try:
-                  available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                  review_text += f"\n\nCác model khả dụng với key của bạn: {', '.join(available_models)}"
-              except:
-                  pass
+                  print(f"Trying model: {model_name}...")
+                  model = genai.GenerativeModel(model_name)
+                  response = model.generate_content(prompt)
+                  review_text = response.text
+                  success = True
+                  print(f"Successfully reviewed with {model_name}")
+                  break
+              except Exception as e:
+                  last_error = str(e)
+                  print(f"Model {model_name} failed: {last_error}")
+                  continue
+          
+          if not success:
+              review_text = f"❌ Không thể thực hiện review sau khi thử tất cả các model khả dụng.\n\nLỗi cuối cùng: {last_error}"
+              try:
+                  available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                  review_text += f"\n\nCác model trong list của bạn: {', '.join(available)}"
+              except: pass
+
+          with open("review_result.md", "w", encoding="utf-8") as f:
+              f.write(review_text)
 
           with open("review_result.md", "w", encoding="utf-8") as f:
               f.write(review_text)
