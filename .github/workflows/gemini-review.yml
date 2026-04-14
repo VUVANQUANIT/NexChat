@@ -54,8 +54,14 @@ jobs:
 
           genai.configure(api_key=api_key)
           
-          # Sử dụng flash để phản hồi nhanh, giá rẻ/miễn phí và context window lớn
-          model = genai.GenerativeModel("gemini-1.5-flash")
+          # Sử dụng gemini-1.5-pro để có kết quả review sâu sắc nhất và ổn định nhất
+          model_name = "gemini-1.5-pro"
+          
+          try:
+              model = genai.GenerativeModel(model_name)
+          except Exception as e:
+              # Fallback sang gemini-1.5-flash nếu pro không khả dụng
+              model = genai.GenerativeModel("gemini-1.5-flash")
 
           try:
               with open("pr_diff.txt", "r", encoding="utf-8") as f:
@@ -94,7 +100,13 @@ jobs:
               response = model.generate_content(prompt)
               review_text = response.text
           except Exception as e:
-              review_text = f"Đã có lỗi xảy ra khi gọi Gemini API: {str(e)}"
+              review_text = f"Đã có lỗi xảy ra khi gọi Gemini API ({model_name}): {str(e)}"
+              # Thử liệt kê các model khả dụng để người dùng debug
+              try:
+                  available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                  review_text += f"\n\nCác model khả dụng với key của bạn: {', '.join(available_models)}"
+              except:
+                  pass
 
           with open("review_result.md", "w", encoding="utf-8") as f:
               f.write(review_text)
