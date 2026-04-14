@@ -3,7 +3,7 @@ name: Gemini AI Code Review
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-
+    branches: [main, dev]
 
 # Tự hủy run cũ khi dev push thêm commit vào cùng PR — tiết kiệm token
 concurrency:
@@ -53,12 +53,6 @@ jobs:
           else
             echo "mode=fast" >> $GITHUB_OUTPUT
           fi
-          # Kiểm tra có label review-commit không
-          if grep -q "review-commit" labels.json; then
-          echo "should_review=true" >> $GITHUB_OUTPUT
-          else
-          echo "should_review=false" >> $GITHUB_OUTPUT
-          fi
           rm labels.json
 
       - name: Get PR diff and changed file list
@@ -72,7 +66,6 @@ jobs:
           cat changed_files.txt
 
       - name: Run Gemini Review
-        if: steps.review_mode.outputs.should_review == 'true'
         id: gemini_review
         continue-on-error: true
         env:
@@ -284,8 +277,3 @@ jobs:
               });
               console.log('Created new review comment');
             }
-      - name: Write Job Summary
-        if: steps.review_mode.outputs.should_review == 'true'
-        run: |
-          echo "## 🤖 Gemini AI Code Review" >> $GITHUB_STEP_SUMMARY
-          cat review_result.md >> $GITHUB_STEP_SUMMARY
