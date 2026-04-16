@@ -338,7 +338,7 @@ class ConversationServiceImplTest {
                     .owner(alice)
                     .build();
 
-            com.Spring_chat.Web_chat.dto.conversations.ListUserDTO request = new com.Spring_chat.Web_chat.dto.conversations.ListUserDTO();
+            com.Spring_chat.Web_chat.dto.conversations.AddParticipantsRequestDTO request = new com.Spring_chat.Web_chat.dto.conversations.AddParticipantsRequestDTO();
             request.setUserIds(new Long[]{2L});
 
             given(userRepository.findById(1L)).willReturn(Optional.of(alice));
@@ -347,7 +347,7 @@ class ConversationServiceImplTest {
             given(friendshipRepository.findBetweenUsers(1L, 2L)).willReturn(Optional.empty());
             given(conversationParticipantRepository.findByConversation_IdAndUser(5L, bob)).willReturn(null);
 
-            ApiResponse<com.Spring_chat.Web_chat.dto.conversations.ListUserDTO> response =
+            ApiResponse<com.Spring_chat.Web_chat.dto.conversations.AddParticipantsResponseDTO> response =
                     conversationService.addUserToConversation(5L, request);
 
             assertThat(response.isSuccess()).isTrue();
@@ -369,14 +369,14 @@ class ConversationServiceImplTest {
             given(userRepository.findById(2L)).willReturn(Optional.of(bob));
             given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
 
-            assertThatThrownBy(() -> conversationService.addUserToConversation(5L, new com.Spring_chat.Web_chat.dto.conversations.ListUserDTO()))
+            assertThatThrownBy(() -> conversationService.addUserToConversation(5L, new com.Spring_chat.Web_chat.dto.conversations.AddParticipantsRequestDTO()))
                     .isInstanceOf(AppException.class)
                     .extracting(e -> ((AppException) e).getErrorCode())
                     .isEqualTo(ErrorCode.FORBIDDEN);
         }
 
         @Test
-        @DisplayName("thêm người đã block -> CANNOT_INVATE_BLOCK")
+        @DisplayName("thêm người đã block -> CANNOT_INVITE_BLOCK")
         void addingBlockedUserShouldThrow() {
             setCurrentUser(1L, "alice");
             User alice = User.builder().id(1L).username("alice").build();
@@ -387,7 +387,7 @@ class ConversationServiceImplTest {
                     .owner(alice)
                     .build();
 
-            com.Spring_chat.Web_chat.dto.conversations.ListUserDTO request = new com.Spring_chat.Web_chat.dto.conversations.ListUserDTO();
+            com.Spring_chat.Web_chat.dto.conversations.AddParticipantsRequestDTO request = new com.Spring_chat.Web_chat.dto.conversations.AddParticipantsRequestDTO();
             request.setUserIds(new Long[]{2L});
 
             given(userRepository.findById(1L)).willReturn(Optional.of(alice));
@@ -402,7 +402,7 @@ class ConversationServiceImplTest {
             assertThatThrownBy(() -> conversationService.addUserToConversation(5L, request))
                     .isInstanceOf(AppException.class)
                     .extracting(e -> ((AppException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.CANNOT_INVATE_BLOCK);
+                    .isEqualTo(ErrorCode.CANNOT_INVITE_BLOCK);
         }
 
         @Test
@@ -417,7 +417,7 @@ class ConversationServiceImplTest {
                     .owner(alice)
                     .build();
 
-            com.Spring_chat.Web_chat.dto.conversations.ListUserDTO request = new com.Spring_chat.Web_chat.dto.conversations.ListUserDTO();
+            com.Spring_chat.Web_chat.dto.conversations.AddParticipantsRequestDTO request = new com.Spring_chat.Web_chat.dto.conversations.AddParticipantsRequestDTO();
             request.setUserIds(new Long[]{2L});
 
             given(userRepository.findById(1L)).willReturn(Optional.of(alice));
@@ -500,6 +500,7 @@ class ConversationServiceImplTest {
                     .id(5L)
                     .type(ConversationType.GROUP)
                     .owner(alice)
+                    .status(com.Spring_chat.Web_chat.enums.ConversationStatus.ACTIVE)
                     .build();
 
             ConversationParticipant alicePart = ConversationParticipant.builder()
@@ -518,6 +519,36 @@ class ConversationServiceImplTest {
             conversationService.removeParticipantFromConversation(5L, 1L);
 
             assertThat(conversation.getOwner()).isEqualTo(bob);
+            assertThat(conversation.getStatus()).isEqualTo(com.Spring_chat.Web_chat.enums.ConversationStatus.ACTIVE);
+            then(conversationRepository).should().save(conversation);
+        }
+
+        @Test
+        @DisplayName("owner rời nhóm và không còn ai -> set status INACTIVE")
+        void lastOwnerLeave_shouldSetInactive() {
+            setCurrentUser(1L, "alice");
+            User alice = User.builder().id(1L).username("alice").build();
+            Conversation conversation = Conversation.builder()
+                    .id(5L)
+                    .type(ConversationType.GROUP)
+                    .owner(alice)
+                    .status(com.Spring_chat.Web_chat.enums.ConversationStatus.ACTIVE)
+                    .build();
+
+            ConversationParticipant alicePart = ConversationParticipant.builder()
+                    .id(10L).conversation(conversation).user(alice).build();
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(alice));
+            given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
+            given(conversationParticipantRepository.findByConversation_IdAndUser_Id(5L, 1L))
+                    .willReturn(Optional.of(alicePart));
+            given(conversationParticipantRepository.findFirstByConversation_IdAndUser_IdNotAndLeftAtIsNullOrderByJoinedAtAsc(5L, 1L))
+                    .willReturn(Optional.empty());
+
+            conversationService.removeParticipantFromConversation(5L, 1L);
+
+            assertThat(conversation.getOwner()).isNull();
+            assertThat(conversation.getStatus()).isEqualTo(com.Spring_chat.Web_chat.enums.ConversationStatus.INACTIVE);
             then(conversationRepository).should().save(conversation);
         }
 
