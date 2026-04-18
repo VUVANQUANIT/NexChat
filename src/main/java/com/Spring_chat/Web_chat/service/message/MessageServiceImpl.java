@@ -20,6 +20,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import java.util.concurrent.TimeUnit;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,9 +41,11 @@ public class MessageServiceImpl implements MessageService {
     private final CurrentUserProvider currentUserProvider;
 
     // Simple cache to avoid redundant existsBy... queries (optimization)
-    // Key: userId:conversationId, Value: last checked timestamp
-    private final Map<String, Instant> participantCache = new ConcurrentHashMap<>();
-    private static final long CACHE_TTL_SECONDS = 60;
+    // Key: userId:conversationId, Value: Boolean indicating participant exists
+    private final Cache<String, Boolean> participantCache = Caffeine.newBuilder()
+            .expireAfterWrite(60, TimeUnit.SECONDS)
+            .maximumSize(10000)
+            .build();
 
     @Override
     @Transactional(readOnly = true)
@@ -106,20 +111,20 @@ public class MessageServiceImpl implements MessageService {
 
     private void validateParticipant(Long conversationId, Long userId) {
         String cacheKey = userId + ":" + conversationId;
-        Instant lastChecked = participantCache.get(cacheKey);
+        Boolean isParticipant = participantCache.getIfPresent(cacheKey);
         
-        if (lastChecked != null && lastChecked.isAfter(Instant.now().minusSeconds(CACHE_TTL_SECONDS))) {
+        if (isParticipant != null && isParticipant) {
             return; // Cache hit and valid
         }
 
-        boolean isParticipant = conversationParticipantRepository
+        isParticipant = conversationParticipantRepository
                 .existsByConversation_IdAndUser_Id(conversationId, userId);
         if (!isParticipant) {
             log.warn("User {} attempted to read conversation {} without being a participant", userId, conversationId);
             throw new AppException(ErrorCode.FORBIDDEN, "Bạn không phải là thành viên của cuộc hội thoại này");
         }
         
-        participantCache.put(cacheKey, Instant.now());
+        participantCache.put(cacheKey, true);
     }
 
     private int normalizeLimit(Integer requestedLimit) {

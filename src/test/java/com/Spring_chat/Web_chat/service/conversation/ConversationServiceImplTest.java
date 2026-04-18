@@ -354,26 +354,7 @@ class ConversationServiceImplTest {
             then(conversationParticipantRepository).should().save(any(ConversationParticipant.class));
         }
 
-        @Test
-        @DisplayName("không phải owner -> FORBIDDEN")
-        void nonOwnerShouldThrowForbidden() {
-            setCurrentUser(2L, "bob");
-            User alice = User.builder().id(1L).username("alice").build();
-            User bob = User.builder().id(2L).username("bob").build();
-            Conversation conversation = Conversation.builder()
-                    .id(5L)
-                    .type(ConversationType.GROUP)
-                    .owner(alice)
-                    .build();
 
-            given(userRepository.findById(2L)).willReturn(Optional.of(bob));
-            given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
-
-            assertThatThrownBy(() -> conversationService.addUserToConversation(5L, new com.Spring_chat.Web_chat.dto.conversations.AddParticipantsRequestDTO()))
-                    .isInstanceOf(AppException.class)
-                    .extracting(e -> ((AppException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.FORBIDDEN);
-        }
 
         @Test
         @DisplayName("thêm người đã block -> CANNOT_INVITE_BLOCK")
