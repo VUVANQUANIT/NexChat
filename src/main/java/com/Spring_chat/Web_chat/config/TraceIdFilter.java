@@ -12,11 +12,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.UUID;
 
-/**
- * Gắn traceId vào MDC cho mỗi request để debug và log.
- * Header X-Trace-Id từ client sẽ được ưu tiên dùng lại.
- * traceId cũng được trả về trong ApiErrorResponse khi có lỗi.
- */
 @Component
 @Order(1)
 public class TraceIdFilter extends OncePerRequestFilter {
@@ -28,10 +23,7 @@ public class TraceIdFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        String traceId = request.getHeader(TRACE_ID_HEADER);
-        if (traceId == null || traceId.isBlank()) {
-            traceId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-        }
+        String traceId = generateNewTraceId();
         MDC.put(MDC_KEY, traceId);
         response.setHeader(TRACE_ID_HEADER, traceId);
         try {
@@ -39,5 +31,9 @@ public class TraceIdFilter extends OncePerRequestFilter {
         } finally {
             MDC.remove(MDC_KEY);
         }
+    }
+
+    private String generateNewTraceId() {
+        return UUID.randomUUID().toString().replace("-", "").substring(0, 16);
     }
 }
