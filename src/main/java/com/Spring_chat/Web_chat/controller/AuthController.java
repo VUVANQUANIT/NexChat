@@ -66,13 +66,7 @@ public class AuthController {
     }
 
     private String extractClientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            String firstIp = forwarded.split(",")[0].trim();
-            if (firstIp.matches("^[0-9a-fA-F.:]{2,45}$")) {
-                return firstIp;
-            }
-        }
+        // TODO: enable trusted proxy mode later if we use a standard reverse proxy (e.g. ForwardedHeaderFilter)
         return request.getRemoteAddr();
     }
 }

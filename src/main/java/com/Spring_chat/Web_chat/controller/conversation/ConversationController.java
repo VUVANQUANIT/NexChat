@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -46,19 +47,22 @@ public class ConversationController {
     }
 
     @PatchMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or @conversationService.isOwner(?#id)")
     public ResponseEntity<ApiResponse<UpdateConversationDTO>> updateConversation(
             @PathVariable("id") Long id,
             @Valid @RequestBody UpdateConversationDTO updateConversationDTO) {
         return ResponseEntity.ok(conversationService.updateConversation(id, updateConversationDTO));
     }
     @PostMapping("/{id}/participants")
-    public ResponseEntity<ApiResponse<ListUserDTO>> addParticipantToConversation(
+    @PreAuthorize("hasRole('ADMIN') or @conversationService.isOwner(?#id)")
+    public ResponseEntity<ApiResponse<AddParticipantsResponseDTO>> addParticipantToConversation(
             @PathVariable("id") Long id,
-            @Valid @RequestBody ListUserDTO listUserDTO) {
-        return ResponseEntity.ok(conversationService.addUserToConversation(id, listUserDTO));
+            @Valid @RequestBody AddParticipantsRequestDTO addParticipantsRequestDTO) {
+        return ResponseEntity.ok(conversationService.addUserToConversation(id, addParticipantsRequestDTO));
     }
 
     @DeleteMapping("/{id}/participants/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or @conversationService.isOwner(?#id) or #userId == principal.id")
     public ResponseEntity<ApiResponse<Void>> removeParticipant(
             @PathVariable("id") Long id,
             @PathVariable("userId") Long userId) {

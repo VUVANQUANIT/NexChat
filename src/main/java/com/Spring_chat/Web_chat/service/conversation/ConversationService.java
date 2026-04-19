@@ -11,6 +11,7 @@ public interface ConversationService {
     ApiResponse<ConversationListDTO>  getUserConversation(Pageable pageable, String cursor);
     ApiResponse<ConversationDetailDTO> getConversationDetail(Long conversationId);
     ApiResponse<UpdateConversationDTO> updateConversation(Long id, UpdateConversationDTO updateConversationDTO);
-    ApiResponse<ListUserDTO> addUserToConversation(Long conversationId, ListUserDTO listUserDTO);
+    ApiResponse<AddParticipantsResponseDTO> addUserToConversation(Long conversationId, AddParticipantsRequestDTO addParticipantsRequestDTO);
     ApiResponse<Void> removeParticipantFromConversation(Long conversationId, Long userId);
+    boolean isOwner(Long conversationId);
 }

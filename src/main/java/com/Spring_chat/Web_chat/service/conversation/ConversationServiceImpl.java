@@ -6,6 +6,7 @@ import com.Spring_chat.Web_chat.entity.Conversation;
 import com.Spring_chat.Web_chat.entity.ConversationParticipant;
 import com.Spring_chat.Web_chat.entity.Friendship;
 import com.Spring_chat.Web_chat.entity.User;
+import com.Spring_chat.Web_chat.enums.ConversationStatus;
 import com.Spring_chat.Web_chat.enums.ConversationType;
 import com.Spring_chat.Web_chat.enums.FriendshipStatus;
 import com.Spring_chat.Web_chat.enums.MessageType;
@@ -183,9 +184,18 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     @Override
+    public boolean isOwner(Long conversationId) {
+        if (conversationId == null) return false;
+        User currentUser = currentUserProvider.findCurrentUserOrThrow();
+        return conversationRepository.findById(conversationId)
+                .map(Conversation::getOwner)
+                .map(owner -> owner.getId().equals(currentUser.getId()))
+                .orElse(false);
+    }
+
+    @Override
     @Transactional
     public ApiResponse<UpdateConversationDTO> updateConversation(Long id, UpdateConversationDTO updateConversationDTO) {
-        User currentUser = currentUserProvider.findCurrentUserOrThrow();
         Conversation conversation = conversationRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Conversation not found"));
 
@@ -193,14 +203,7 @@ public class ConversationServiceImpl implements ConversationService {
             throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED, "Cuộc hội thoại PRIVATE không có tiêu đề để sửa");
         }
 
-        boolean isAdmin = currentUser.getRoles().stream()
-                .anyMatch(role -> role.getName().equals(com.Spring_chat.Web_chat.enums.RoleName.ROLE_ADMIN));
-
-        boolean isOwner = conversation.getOwner() != null && conversation.getOwner().getId().equals(currentUser.getId());
-
-        if (!isOwner && !isAdmin) {
-            throw new AppException(ErrorCode.FORBIDDEN, "Chỉ chủ nhóm hoặc Admin mới được phép chỉnh sửa");
-        }
+        // Quyền admin/owner đã được check ở Controller layer bằng @PreAuthorize
 
         if (updateConversationDTO.getTitle() != null && !updateConversationDTO.getTitle().trim().isEmpty()) {
             conversation.setTitle(updateConversationDTO.getTitle().trim());
@@ -222,7 +225,7 @@ public class ConversationServiceImpl implements ConversationService {
 
     @Override
     @Transactional
-    public ApiResponse<ListUserDTO> addUserToConversation(Long conversationId, ListUserDTO listUserDTO) {
+    public ApiResponse<AddParticipantsResponseDTO> addUserToConversation(Long conversationId, AddParticipantsRequestDTO addParticipantsRequestDTO) {
         User currentUser = currentUserProvider.findCurrentUserOrThrow();
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy cuộc hội thoại"));
@@ -231,20 +234,21 @@ public class ConversationServiceImpl implements ConversationService {
             throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED, "Không thể thêm thành viên vào cuộc hội thoại PRIVATE");
         }
 
-        boolean isOwner = conversation.getOwner() != null && conversation.getOwner().getId().equals(currentUser.getId());
-        if (!isOwner) {
-            throw new AppException(ErrorCode.FORBIDDEN, "Bạn không phải là chủ của group nên không thể thêm");
-        }
+        // Quyền owner/admin đã được check ở Controller layer bằng @PreAuthorize
 
-        if (listUserDTO.getUserIds() == null || listUserDTO.getUserIds().length == 0) {
+        if (addParticipantsRequestDTO.getUserIds() == null || addParticipantsRequestDTO.getUserIds().length == 0) {
             throw new AppException(ErrorCode.MISSING_PARAMETER, "Không có dữ liệu của người thêm vào");
         }
 
-        for (Long userId : listUserDTO.getUserIds()) {
+        for (Long userId : addParticipantsRequestDTO.getUserIds()) {
             addParticipantToConversation(conversation, userId, currentUser);
         }
 
-        return ApiResponse.ok("Thêm thành công người dùng vào cuộc hội thoại", listUserDTO);
+        AddParticipantsResponseDTO response = AddParticipantsResponseDTO.builder()
+                .addedUserIds(addParticipantsRequestDTO.getUserIds())
+                .build();
+
+        return ApiResponse.ok("Thêm thành công người dùng vào cuộc hội thoại", response);
     }
 
     @Override
@@ -266,12 +270,10 @@ public class ConversationServiceImpl implements ConversationService {
              return ApiResponse.ok("User already left", null); // Idempotent: already left
         }
 
+        // Quyền kick/leave đã được check ở Controller layer bằng @PreAuthorize
+
         boolean isSelf = currentUser.getId().equals(userId);
         boolean isOwner = conversation.getOwner() != null && conversation.getOwner().getId().equals(currentUser.getId());
-
-        if (!isSelf && !isOwner) {
-            throw new AppException(ErrorCode.FORBIDDEN, "Bạn không có quyền kick thành viên này");
-        }
 
         // Thực hiện rời nhóm/kick
         targetParticipant.setLeftAt(Instant.now());
@@ -294,9 +296,21 @@ public class ConversationServiceImpl implements ConversationService {
             conversation.setOwner(nextOwnerParticipant.get().getUser());
             conversationRepository.save(conversation);
         } else {
-            // Không còn ai trong nhóm -> Xóa owner
-            conversation.setOwner(null);
-            conversationRepository.save(conversation);
+            // Kiểm tra tuyệt đối xem còn bất kỳ active participant nào khác không để tránh lock nhầm
+            // findFirstBy... ở trên thực tế đã là check rồi, nhưng thêm bước này để chắc chắn theo feedback
+            boolean hasOtherActiveMembers = conversationParticipantRepository
+                    .existsByConversation_IdAndUser_IdNotAndLeftAtIsNull(conversation.getId(), leavingOwnerId);
+
+            if (!hasOtherActiveMembers) {
+                // Không còn ai trong nhóm -> Xóa owner và set status INACTIVE
+                conversation.setOwner(null);
+                conversation.setStatus(ConversationStatus.INACTIVE);
+                conversationRepository.save(conversation);
+            } else {
+                // Trường hợp hy hữu: findFirst không ra nhưng exists lại có (có thể do race condition hoặc lỗi query)
+                // Log cảnh báo và không set INACTIVE
+                log.warn("Potential race condition in transferOwnership for conversation {}. findFirst was empty but exists returned true.", conversation.getId());
+            }
         }
     }
 
@@ -311,7 +325,7 @@ public class ConversationServiceImpl implements ConversationService {
         // Kiểm tra block hai chiều (chuẩn production: dùng findBetweenUsers)
         Optional<Friendship> friendship = friendshipRepository.findBetweenUsers(currentUser.getId(), participantId);
         if (friendship.isPresent() && friendship.get().getStatus() == FriendshipStatus.BLOCKED) {
-            throw new AppException(ErrorCode.CANNOT_INVATE_BLOCK, "Không thể mời do tồn tại quan hệ block giữa hai người");
+            throw new AppException(ErrorCode.CANNOT_INVITE_BLOCK, "Không thể mời do tồn tại quan hệ block giữa hai người");
         }
 
         ConversationParticipant conversationParticipant = conversationParticipantRepository
