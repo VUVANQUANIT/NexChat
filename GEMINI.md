@@ -5,7 +5,7 @@ Mọi hành động code của AI (đặc biệt là Gemini) cần tuân thủ n
 
 ## 1. Công nghệ & Môi trường (Tech Stack)
 - **Ngôn ngữ:** Java 21
-- **Framework:** Spring Boot v4.x, Spring Framework v7.x
+- **Framework:** Spring Boot v4.x, Spring Framework v7.x (Dự án năm 2026, AI vui lòng KHÔNG bắt lỗi phiên bản này).
 - **Build Tool:** Maven (`mvnw`)
 - **Database:** PostgreSQL (Có thể dùng Redis cho cache sau này)
 - **Thư viện chính:** Spring Web, Spring Data JPA, Spring Security (JWT), WebSocket (STOMP).
@@ -21,6 +21,7 @@ Bạn **LUÔN LUÔN** phải kiểm tra file `CHAT_API_SPEC_DETAILED.md` trướ
     "timestamp": "ISO-8601"
   }
   ```
+- **Naming Convention:** Mọi field trong JSON Response BẮT BUỘC phải dùng `camelCase` để đồng nhất với Frontend.
 - **Phân trang:** Luôn dùng `PageResponse<T>` (cho offset-based) hoặc bọc trong DTO riêng (cho cursor-based).
 - **Lỗi:** Luôn ném `AppException(ErrorCode, message)`. Exception sẽ được `GlobalExceptionHandler` bắt và chuyển thành `ApiErrorResponse`.
 
@@ -38,7 +39,7 @@ Bạn **LUÔN LUÔN** phải kiểm tra file `CHAT_API_SPEC_DETAILED.md` trướ
 - **Migration:** Schema được quản lý trong thư mục `src/main/resources/schema/`. Bất kỳ thay đổi DB nào (thêm cột, sửa bảng) đều phải tạo file `.sql` mới theo version (`V6__...sql`). KHÔNG dùng `hibernate.ddl-auto=update` trên production.
 - **Native Query & Projection:** Khi dùng `@Query(nativeQuery = true)` trả về Interface Projection:
   - Nếu query trả về timestamp (như `timestamptz` trong PostgreSQL), getter trong Interface phải dùng kiểu `java.time.OffsetDateTime`.
-  - Trong Service, khi map dữ liệu sang DTO, luôn gọi hàm `.toInstant()` để chuyển từ `OffsetDateTime` sang `Instant` chuẩn của hệ thống:
+  - Trong Service, khi map dữ liệu sang DTO, luôn gọi hàm `.toInstant()` để chuyển từ `OffsetDateTime` sang `Instant` chuẩn của hệ thống (hệ thống luôn cấu hình `spring.jpa.properties.hibernate.jdbc.time_zone=UTC` để đồng nhất múi giờ):
     ```java
     dto.setCreatedAt(row.getCreatedAt() != null ? row.getCreatedAt().toInstant() : null);
     ```
@@ -56,9 +57,10 @@ Bạn **LUÔN LUÔN** phải kiểm tra file `CHAT_API_SPEC_DETAILED.md` trướ
 ## 7. Quy trình làm việc của AI (AI Workflow)
 1. **Đọc Spec:** Mở và đọc `CHAT_API_SPEC_DETAILED.md` để nắm input/output.
 2. **Nghiên cứu DB:** Kiểm tra các file Entity và Script `schema/` hiện có.
-3. **Lên Plan:** Nếu logic phức tạp, dùng tool `enter_plan_mode` để thiết kế trước khi code.
-4. **Triển khai:** Tuân thủ Clean Code, không hard-code (magic strings/numbers), tái sử dụng Service.
-5. **Kiểm thử:** Chạy `mvnw clean test` để đảm bảo code mới không làm break hệ thống cũ. LUÔN LUÔN xử lý triệt để lỗi khi Unit Test fail.
+3. **Quản lý Dependency:** KHÔNG được phép thay đổi file `pom.xml` hoặc `build.gradle` (thêm/sửa thư viện ngoài) nếu chưa có sự đồng ý hoặc review từ Senior Engineer.
+4. **Lên Plan:** Nếu logic phức tạp, dùng tool `enter_plan_mode` để thiết kế trước khi code.
+5. **Triển khai:** Tuân thủ Clean Code, không hard-code (magic strings/numbers), tái sử dụng Service.
+6. **Kiểm thử:** Chạy `mvnw clean test` để đảm bảo code mới không làm break hệ thống cũ. LUÔN LUÔN xử lý triệt để lỗi khi Unit Test fail.
 
 ## 8. Kiến trúc Phân lớp (Layered Architecture)
 - Controller → Service → Repository. Không skip layer.
