@@ -265,7 +265,8 @@ public class ConversationServiceImpl implements ConversationService {
     @Transactional
     public ApiResponse<Void> removeParticipantFromConversation(Long conversationId, Long userId) {
         User currentUser = currentUserProvider.findCurrentUserOrThrow();
-        Conversation conversation = conversationRepository.findById(conversationId)
+        // Lock conversation row to serialize owner-transfer decisions under concurrent leave/kick requests.
+        Conversation conversation = conversationRepository.findByIdForUpdate(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy cuộc hội thoại"));
 
         if (conversation.getType() == ConversationType.PRIVATE) {

@@ -12,8 +12,6 @@ import com.Spring_chat.Web_chat.exception.AppException;
 import com.Spring_chat.Web_chat.exception.ErrorCode;
 import com.Spring_chat.Web_chat.mappers.ConversationMapper;
 import com.Spring_chat.Web_chat.repository.ConversationParticipantRepository;
-import com.Spring_chat.Web_chat.repository.ConversationRepository;
-import com.Spring_chat.Web_chat.repository.MessageRepository;
 import com.Spring_chat.Web_chat.repository.UserRepository;
 import com.Spring_chat.Web_chat.security.AuthenticatedUser;
 import com.Spring_chat.Web_chat.service.common.CurrentUserProvider;
@@ -43,7 +41,7 @@ import static org.mockito.BDDMockito.then;
 @ExtendWith(MockitoExtension.class)
 class ConversationServiceImplTest {
 
-    @Mock private ConversationRepository conversationRepository;
+    @Mock private com.Spring_chat.Web_chat.repository.ConversationRepository conversationRepository;
     @Mock private UserRepository userRepository;
     @Mock private ConversationParticipantRepository conversationParticipantRepository;
     @Mock private ConversationMapper conversationMapper;
@@ -434,7 +432,7 @@ class ConversationServiceImplTest {
                     .id(100L).conversation(conversation).user(bob).build();
 
             given(userRepository.findById(2L)).willReturn(Optional.of(bob));
-            given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
+            given(conversationRepository.findByIdForUpdate(5L)).willReturn(Optional.of(conversation));
             given(conversationParticipantRepository.findByConversation_IdAndUser_Id(5L, 2L))
                     .willReturn(Optional.of(participant));
 
@@ -461,7 +459,7 @@ class ConversationServiceImplTest {
                     .id(100L).conversation(conversation).user(bob).build();
 
             given(userRepository.findById(1L)).willReturn(Optional.of(alice));
-            given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
+            given(conversationRepository.findByIdForUpdate(5L)).willReturn(Optional.of(conversation));
             given(conversationParticipantRepository.findByConversation_IdAndUser_Id(5L, 2L))
                     .willReturn(Optional.of(participant));
 
@@ -490,7 +488,7 @@ class ConversationServiceImplTest {
                     .id(11L).conversation(conversation).user(bob).build();
 
             given(userRepository.findById(1L)).willReturn(Optional.of(alice));
-            given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
+            given(conversationRepository.findByIdForUpdate(5L)).willReturn(Optional.of(conversation));
             given(conversationParticipantRepository.findByConversation_IdAndUser_Id(5L, 1L))
                     .willReturn(Optional.of(alicePart));
             // Cập nhật stub: loại trừ người rời đi
@@ -520,7 +518,7 @@ class ConversationServiceImplTest {
                     .id(10L).conversation(conversation).user(alice).build();
 
             given(userRepository.findById(1L)).willReturn(Optional.of(alice));
-            given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
+            given(conversationRepository.findByIdForUpdate(5L)).willReturn(Optional.of(conversation));
             given(conversationParticipantRepository.findByConversation_IdAndUser_Id(5L, 1L))
                     .willReturn(Optional.of(alicePart));
             given(conversationParticipantRepository.findFirstByConversation_IdAndUser_IdNotAndLeftAtIsNullOrderByJoinedAtAsc(5L, 1L))
