@@ -22,6 +22,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -138,12 +140,12 @@ public class ConversationServiceImpl implements ConversationService {
         User currentUser = currentUserProvider.findCurrentUserOrThrow();
 
         int limit = Math.min(pageable.getPageSize(), 50);
-        Instant onlineThreshold = Instant.now().minus(5, java.time.temporal.ChronoUnit.MINUTES);
+        OffsetDateTime onlineThreshold = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(5);
 
-        Instant cursor = null;
+        OffsetDateTime cursor = null;
         if (cursorStr != null && !cursorStr.isBlank()) {
             try {
-                cursor = Instant.parse(cursorStr);
+                cursor = OffsetDateTime.parse(cursorStr);
             } catch (Exception e) {
                 log.warn("Invalid cursor format: {}", cursorStr);
             }
@@ -250,8 +252,25 @@ public class ConversationServiceImpl implements ConversationService {
             throw new AppException(ErrorCode.MISSING_PARAMETER, "Không có dữ liệu của người thêm vào");
         }
 
+        Set<Long> requestedUserIds = Arrays.stream(addParticipantsRequestDTO.getUserIds())
+                .filter(Objects::nonNull)
+                .filter(id -> !id.equals(currentUser.getId()))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        Map<Long, User> userMap = new HashMap<>();
+        if (!requestedUserIds.isEmpty()) {
+            List<User> users = userRepository.findAllById(requestedUserIds);
+            userMap = users.stream().collect(Collectors.toMap(User::getId, u -> u));
+            if (userMap.size() != requestedUserIds.size()) {
+                throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Có người dùng không tồn tại");
+            }
+        }
+
         for (Long userId : addParticipantsRequestDTO.getUserIds()) {
-            addParticipantToConversation(conversation, userId, currentUser);
+            if (userId == null || userId.equals(currentUser.getId())) {
+                continue;
+            }
+            addParticipantToConversation(conversation, userMap.get(userId), currentUser);
         }
 
         AddParticipantsResponseDTO response = AddParticipantsResponseDTO.builder()
@@ -325,16 +344,9 @@ public class ConversationServiceImpl implements ConversationService {
         }
     }
 
-    private void addParticipantToConversation(Conversation conversation, Long participantId, User currentUser) {
-        if (participantId.equals(currentUser.getId())) {
-            return; // Chủ nhóm đã ở trong nhóm rồi
-        }
-
-        User participant = userRepository.findById(participantId)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy người dùng ID: " + participantId));
-
+    private void addParticipantToConversation(Conversation conversation, User participant, User currentUser) {
         // Kiểm tra block hai chiều (chuẩn production: dùng findBetweenUsers)
-        Optional<Friendship> friendship = friendshipRepository.findBetweenUsers(currentUser.getId(), participantId);
+        Optional<Friendship> friendship = friendshipRepository.findBetweenUsers(currentUser.getId(), participant.getId());
         if (friendship.isPresent() && friendship.get().getStatus() == FriendshipStatus.BLOCKED) {
             throw new AppException(ErrorCode.CANNOT_INVITE_BLOCK, "Không thể mời do tồn tại quan hệ block giữa hai người");
         }
