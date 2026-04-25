@@ -11,8 +11,6 @@ import com.Spring_chat.Web_chat.enums.ConversationType;
 import com.Spring_chat.Web_chat.exception.AppException;
 import com.Spring_chat.Web_chat.exception.ErrorCode;
 import com.Spring_chat.Web_chat.mappers.ConversationMapper;
-import com.Spring_chat.Web_chat.repository.ConversationParticipantRepository;
-import com.Spring_chat.Web_chat.repository.UserRepository;
 import com.Spring_chat.Web_chat.security.AuthenticatedUser;
 import com.Spring_chat.Web_chat.service.common.CurrentUserProvider;
 import org.junit.jupiter.api.AfterEach;
@@ -42,8 +40,8 @@ import static org.mockito.BDDMockito.then;
 class ConversationServiceImplTest {
 
     @Mock private com.Spring_chat.Web_chat.repository.ConversationRepository conversationRepository;
-    @Mock private UserRepository userRepository;
-    @Mock private ConversationParticipantRepository conversationParticipantRepository;
+    @Mock private com.Spring_chat.Web_chat.repository.UserRepository userRepository;
+    @Mock private com.Spring_chat.Web_chat.repository.ConversationParticipantRepository conversationParticipantRepository;
     @Mock private ConversationMapper conversationMapper;
     @Mock private com.Spring_chat.Web_chat.repository.FriendshipRepository friendshipRepository;
 
@@ -341,7 +339,7 @@ class ConversationServiceImplTest {
 
             given(userRepository.findById(1L)).willReturn(Optional.of(alice));
             given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
-            given(userRepository.findById(2L)).willReturn(Optional.of(bob));
+            given(userRepository.findAllById(anyIterable())).willReturn(List.of(bob));
             given(friendshipRepository.findBetweenUsers(1L, 2L)).willReturn(Optional.empty());
             given(conversationParticipantRepository.findByConversation_IdAndUser(5L, bob)).willReturn(null);
 
@@ -371,7 +369,7 @@ class ConversationServiceImplTest {
 
             given(userRepository.findById(1L)).willReturn(Optional.of(alice));
             given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
-            given(userRepository.findById(2L)).willReturn(Optional.of(bob));
+            given(userRepository.findAllById(anyIterable())).willReturn(List.of(bob));
 
             com.Spring_chat.Web_chat.entity.Friendship friendship = new com.Spring_chat.Web_chat.entity.Friendship();
             friendship.setStatus(com.Spring_chat.Web_chat.enums.FriendshipStatus.BLOCKED);
@@ -401,7 +399,7 @@ class ConversationServiceImplTest {
 
             given(userRepository.findById(1L)).willReturn(Optional.of(alice));
             given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
-            given(userRepository.findById(2L)).willReturn(Optional.of(bob));
+            given(userRepository.findAllById(anyIterable())).willReturn(List.of(bob));
             given(friendshipRepository.findBetweenUsers(1L, 2L)).willReturn(Optional.empty());
             given(conversationParticipantRepository.findByConversation_IdAndUser(5L, bob))
                     .willReturn(ConversationParticipant.builder().build());

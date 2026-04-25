@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 public interface ConversationParticipantRepository extends JpaRepository<ConversationParticipant, Long> {
@@ -96,9 +97,9 @@ public interface ConversationParticipantRepository extends JpaRepository<Convers
             """, nativeQuery = true)
             List<ConversationRowProjection> findUserConversations(
             @Param("userId") Long   userId,
-            @Param("cursor") java.time.Instant cursor,
+            @Param("cursor") OffsetDateTime cursor,
             @Param("limit")  int    limit,
-            @Param("onlineThreshold") java.time.Instant onlineThreshold
+            @Param("onlineThreshold") OffsetDateTime onlineThreshold
             );
 
     ConversationParticipant findByConversation_IdAndUser(Long conversationId, User user);
