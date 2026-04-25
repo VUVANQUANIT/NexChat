@@ -48,10 +48,10 @@ jobs:
           ${{ toJson(github.event.pull_request.labels.*.name) }}
           EOF
           
-          if grep -q "needs-deep-review" labels.json; then
-            echo "mode=deep" >> $GITHUB_OUTPUT
-          else
+          if grep -q "needs-fast-review" labels.json; then
             echo "mode=fast" >> $GITHUB_OUTPUT
+          else
+            echo "mode=deep" >> $GITHUB_OUTPUT
           fi
           rm labels.json
 
