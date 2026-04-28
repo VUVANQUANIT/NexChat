@@ -16,7 +16,6 @@ public interface ConversationParticipantRepository extends JpaRepository<Convers
     List<ConversationParticipant> findAllByConversation_IdAndLeftAtIsNull(Long conversationId);
     List<ConversationParticipant> findByUser_Id(Long userId);
     List<ConversationParticipant> findAllByConversation_IdOrderByJoinedAtAsc(Long conversationId);
-    boolean existsByConversation_IdAndUser_Id(Long conversationId, Long userId);
     boolean existsByConversation_IdAndUser_IdAndLeftAtIsNull(Long conversationId, Long userId);
 
     /**

@@ -13,6 +13,7 @@ import com.Spring_chat.Web_chat.exception.ErrorCode;
 import com.Spring_chat.Web_chat.mappers.ConversationMapper;
 import com.Spring_chat.Web_chat.security.AuthenticatedUser;
 import com.Spring_chat.Web_chat.service.common.CurrentUserProvider;
+import com.Spring_chat.Web_chat.service.message.MessageService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -44,6 +45,7 @@ class ConversationServiceImplTest {
     @Mock private com.Spring_chat.Web_chat.repository.ConversationParticipantRepository conversationParticipantRepository;
     @Mock private ConversationMapper conversationMapper;
     @Mock private com.Spring_chat.Web_chat.repository.FriendshipRepository friendshipRepository;
+    @Mock private MessageService messageService;
 
     private CurrentUserProvider currentUserProvider;
     private ConversationServiceImpl conversationService;
@@ -57,7 +59,8 @@ class ConversationServiceImplTest {
                 currentUserProvider,
                 conversationParticipantRepository,
                 conversationMapper,
-                friendshipRepository
+                friendshipRepository,
+                messageService
         );
     }
 
@@ -266,7 +269,7 @@ class ConversationServiceImplTest {
 
             given(userRepository.findById(1L)).willReturn(Optional.of(alice));
             given(conversationRepository.findById(55L)).willReturn(Optional.of(conversation));
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_Id(55L, 1L)).willReturn(true);
+            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(55L, 1L)).willReturn(true);
             given(conversationParticipantRepository.findAllByConversation_IdOrderByJoinedAtAsc(55L)).willReturn(participants);
             given(conversationMapper.toConversationDetailDTO(conversation, participants)).willReturn(detailDTO);
 
@@ -303,7 +306,7 @@ class ConversationServiceImplTest {
 
             given(userRepository.findById(1L)).willReturn(Optional.of(alice));
             given(conversationRepository.findById(55L)).willReturn(Optional.of(conversation));
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_Id(55L, 1L)).willReturn(false);
+            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(55L, 1L)).willReturn(false);
 
             assertThatThrownBy(() -> conversationService.getConversationDetail(55L))
                     .isInstanceOf(AppException.class)
