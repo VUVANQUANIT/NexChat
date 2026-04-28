@@ -225,6 +225,19 @@ public class MessageServiceImpl implements MessageService {
             throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED, "Tin nhắn không thuộc cuộc hội thoại này");
         }
 
+        // Prevent race condition and unnecessary DB updates if the read pointer is already at or ahead of the requested ID
+        if (participant.getLastReadMessage() != null && 
+            request.getLastReadMessageId() <= participant.getLastReadMessage().getId()) {
+            
+            long unreadCount = messageDeliveryStatusRepo.countUnreadMessages(userId, conversationId, MessageDeliveryStatus.SEEN);
+            ReadReceiptResponseDTO response = ReadReceiptResponseDTO.builder()
+                    .conversationId(conversationId)
+                    .lastReadMessageId(participant.getLastReadMessage().getId())
+                    .unreadCount(unreadCount)
+                    .build();
+            return ApiResponse.ok("Read receipt updated (Idempotent)", response);
+        }
+
         participant.setLastReadMessage(lastReadMessage);
         conversationParticipantRepository.save(participant);
 
