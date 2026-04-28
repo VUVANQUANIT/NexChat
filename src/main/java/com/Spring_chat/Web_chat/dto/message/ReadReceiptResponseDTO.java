@@ -12,5 +12,5 @@ public class ReadReceiptResponseDTO {
     private Long lastReadMessageId;
     
     // Số lượng tin nhắn CÒN LẠI chưa đọc trong conversation này sau khi đã markAsRead
-    private int unreadCount;
+    private long unreadCount;
 }

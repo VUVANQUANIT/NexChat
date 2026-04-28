@@ -16,10 +16,10 @@ public interface MessageDeliveryStatusRepo extends JpaRepository<MessageStatus, 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE MessageStatus ms
-            SET ms.status = com.Spring_chat.Web_chat.enums.MessageDeliveryStatus.SEEN,
+            SET ms.status = :seenStatus,
                 ms.updatedAt = :updatedAt
             WHERE ms.user.id = :userId
-              AND ms.status <> com.Spring_chat.Web_chat.enums.MessageDeliveryStatus.SEEN
+              AND ms.status <> :seenStatus
               AND ms.message.conversation.id = :conversationId
               AND ms.message.id <= :lastReadMessageId
             """)
@@ -27,7 +27,8 @@ public interface MessageDeliveryStatusRepo extends JpaRepository<MessageStatus, 
             @Param("userId") Long userId,
             @Param("conversationId") Long conversationId,
             @Param("lastReadMessageId") Long lastReadMessageId,
-            @Param("updatedAt") java.time.Instant updatedAt
+            @Param("updatedAt") java.time.Instant updatedAt,
+            @Param("seenStatus") com.Spring_chat.Web_chat.enums.MessageDeliveryStatus seenStatus
     );
 
     @Query("""
@@ -35,9 +36,13 @@ public interface MessageDeliveryStatusRepo extends JpaRepository<MessageStatus, 
             FROM MessageStatus ms
             WHERE ms.user.id = :userId
               AND ms.message.conversation.id = :conversationId
-              AND ms.status <> com.Spring_chat.Web_chat.enums.MessageDeliveryStatus.SEEN
+              AND ms.status <> :seenStatus
               AND ms.message.isDeleted = false
             """)
-    long countUnreadMessages(@Param("userId") Long userId, @Param("conversationId") Long conversationId);
+    long countUnreadMessages(
+            @Param("userId") Long userId, 
+            @Param("conversationId") Long conversationId, 
+            @Param("seenStatus") com.Spring_chat.Web_chat.enums.MessageDeliveryStatus seenStatus
+    );
 }
 

@@ -465,7 +465,7 @@ class MessageServiceImplTest {
             given(conversationParticipantRepository.findByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
                     .willReturn(Optional.of(participant));
             given(messageRepository.findById(messageId)).willReturn(Optional.of(message));
-            given(messageDeliveryStatusRepo.countUnreadMessages(currentUser.getId(), conversationId)).willReturn(0L);
+            given(messageDeliveryStatusRepo.countUnreadMessages(currentUser.getId(), conversationId, MessageDeliveryStatus.SEEN)).willReturn(0L);
 
             ApiResponse<ReadReceiptResponseDTO> response = messageService.markAsRead(conversationId, request);
 
@@ -479,7 +479,8 @@ class MessageServiceImplTest {
                     org.mockito.ArgumentMatchers.eq(currentUser.getId()),
                     org.mockito.ArgumentMatchers.eq(conversationId),
                     org.mockito.ArgumentMatchers.eq(messageId),
-                    org.mockito.ArgumentMatchers.any(Instant.class)
+                    org.mockito.ArgumentMatchers.any(Instant.class),
+                    org.mockito.ArgumentMatchers.eq(MessageDeliveryStatus.SEEN)
             );
         }
 

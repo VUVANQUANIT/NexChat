@@ -232,10 +232,11 @@ public class MessageServiceImpl implements MessageService {
                 userId,
                 conversationId,
                 lastReadMessage.getId(),
-                Instant.now() // Sử dụng Instant.now() (chuẩn UTC) để đồng bộ thời gian trên hệ thống phân tán
+                Instant.now(), // Sử dụng Instant.now() (chuẩn UTC) để đồng bộ thời gian trên hệ thống phân tán
+                MessageDeliveryStatus.SEEN
         );
 
-        int unreadCount = Math.toIntExact(messageDeliveryStatusRepo.countUnreadMessages(userId, conversationId));
+        long unreadCount = messageDeliveryStatusRepo.countUnreadMessages(userId, conversationId, MessageDeliveryStatus.SEEN);
         ReadReceiptResponseDTO response = ReadReceiptResponseDTO.builder()
                 .conversationId(conversationId)
                 .lastReadMessageId(lastReadMessage.getId())
