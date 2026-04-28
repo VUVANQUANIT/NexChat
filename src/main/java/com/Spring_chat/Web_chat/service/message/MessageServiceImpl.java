@@ -5,6 +5,8 @@ import com.Spring_chat.Web_chat.dto.message.DeliveryStatusesDTO;
 import com.Spring_chat.Web_chat.dto.message.MessageListResponseDTO;
 import com.Spring_chat.Web_chat.dto.message.MessageRowProjection;
 import com.Spring_chat.Web_chat.dto.message.MessageSummaryDTO;
+import com.Spring_chat.Web_chat.dto.message.ReadReceiptRequestDTO;
+import com.Spring_chat.Web_chat.dto.message.ReadReceiptResponseDTO;
 import com.Spring_chat.Web_chat.dto.message.SendMessageRequestDTO;
 import com.Spring_chat.Web_chat.dto.message.SendMessageResponseDTO;
 import com.Spring_chat.Web_chat.dto.message.SenderDTO;
@@ -201,6 +203,60 @@ public class MessageServiceImpl implements MessageService {
             releaseIdempotencyKey(idempotencyKey);
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<ReadReceiptResponseDTO> markAsRead(Long conversationId, ReadReceiptRequestDTO request) {
+        User currentUser = currentUserProvider.findCurrentUserOrThrow();
+        Long userId = currentUser.getId();
+
+        ConversationParticipant participant = conversationParticipantRepository
+                .findByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, userId)
+                .orElseThrow(() -> new AppException(
+                        ErrorCode.FORBIDDEN,
+                        "Bạn không có quyền hoặc đã rời nhóm"
+                ));
+
+        Message lastReadMessage = messageRepository.findById(request.getLastReadMessageId())
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy tin nhắn"));
+
+        if (!lastReadMessage.getConversation().getId().equals(conversationId)) {
+            throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED, "Tin nhắn không thuộc cuộc hội thoại này");
+        }
+
+        // Prevent race condition and unnecessary DB updates if the read pointer is already at or ahead of the requested ID
+        if (participant.getLastReadMessage() != null && 
+            request.getLastReadMessageId() <= participant.getLastReadMessage().getId()) {
+            
+            long unreadCount = messageDeliveryStatusRepo.countUnreadMessages(userId, conversationId, MessageDeliveryStatus.SEEN);
+            ReadReceiptResponseDTO response = ReadReceiptResponseDTO.builder()
+                    .conversationId(conversationId)
+                    .lastReadMessageId(participant.getLastReadMessage().getId())
+                    .unreadCount(unreadCount)
+                    .build();
+            return ApiResponse.ok("Read receipt updated (Idempotent)", response);
+        }
+
+        participant.setLastReadMessage(lastReadMessage);
+        conversationParticipantRepository.save(participant);
+
+        messageDeliveryStatusRepo.updateStatusToSeenForUserAndConversation(
+                userId,
+                conversationId,
+                lastReadMessage.getId(),
+                Instant.now(), // Sử dụng Instant.now() (chuẩn UTC) để đồng bộ thời gian trên hệ thống phân tán
+                MessageDeliveryStatus.SEEN
+        );
+
+        long unreadCount = messageDeliveryStatusRepo.countUnreadMessages(userId, conversationId, MessageDeliveryStatus.SEEN);
+        ReadReceiptResponseDTO response = ReadReceiptResponseDTO.builder()
+                .conversationId(conversationId)
+                .lastReadMessageId(lastReadMessage.getId())
+                .unreadCount(unreadCount)
+                .build();
+
+        return ApiResponse.ok("Read receipt updated", response);
     }
 
     @Override
