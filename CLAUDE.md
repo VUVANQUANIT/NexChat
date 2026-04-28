@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./mvnw verify -B             # CI-style build with tests
 ./mvnw test                  # Run all tests
 ./mvnw test -Dtest=ClassName # Single test class
-./mvnw test -Dtest="*Service*,*Integration*" -DfailIfNoTests=false  # Pattern match
+./mvnw test -Dtest="*Service*,*Integration*" -DfailIfNoTests=false --fail-at-end --no-transfer-progress # Pattern match with clean output
 ```
 
 ### Docker workflow
@@ -45,11 +45,11 @@ com.Spring_chat.Web_chat
 └── service/         # Business logic (Auth, Conversation, Message, Friendship, User)
 ```
 
-### Entities (6 main)
+### Entities (8 main)
 - **User** — core user with roles/permissions
 - **Conversation** — PRIVATE or GROUP chat, with owner
 - **ConversationParticipant** — join table with role, last-read timestamp, hidden status
-- **Message** — text content with type, reply-to, client_message_id (idempotency)
+- **Message** — text content with type, reply-to, client_message_id (idempotency, MUST be exposed as `clientMessageId` in API to enforce camelCase)
 - **MessageStatus** — per-participant delivery tracking (SENT/DELIVERED/SEEN)
 - **Friendship** — directed requests with status (PENDING/ACCEPTED/REJECTED/BLOCKED)
 - **RefreshToken** — JWT refresh tokens stored in DB
@@ -69,13 +69,15 @@ com.Spring_chat.Web_chat
 - `404 RESOURCE_NOT_FOUND` — missing entity
 - `422 BUSINESS_RULE_VIOLATED` — business logic violation
 
+**Logging level rules** — INFO for business workflow events, DEBUG for internal service logic/details, ERROR with TraceID for exceptions to ensure proper tracking in ELK/Loki.
+
 **Trace ID** — every request gets a correlation ID propagated via SLF4J MDC and `X-Trace-Id` response header.
 
 **Current user** — use `CurrentUserProvider.findCurrentUserOrThrow()` in Service layer. Never accept userId from request body for self-actions.
 
 **Pagination** — cursor-based for conversation list (`beforeId`), offset-based (Spring Pageable) for others.
 
-**Database migrations** — SQL files in `src/main/resources/schema/` named `V<version>__<description>.sql`. Hibernate DDL is `validate` in production, `update` in dev.
+**Database migrations** — SQL files in `src/main/resources/schema/` named `V<version>__<description>.sql`. We strictly use Flyway/Liquibase for all environments (including dev). Avoid `hibernate.ddl-auto=update` in dev to prevent schema drift.
 
 **Testing** — H2 in-memory DB for unit tests; PostgreSQL service container in CI. Test method naming: `[MethodName]_[Condition]_[ExpectedResult]`. Integration tests use MockMvc.
 
