@@ -203,6 +203,14 @@ public class MessageServiceImpl implements MessageService {
         }
     }
 
+    @Override
+    public void invalidateParticipantCache(Long conversationId, Long userId) {
+        if (conversationId == null || userId == null) {
+            return;
+        }
+        participantCache.invalidate(userId + ":" + conversationId);
+    }
+
 
     private void validateParticipant(Long conversationId, Long userId) {
         String cacheKey = userId + ":" + conversationId;
@@ -213,7 +221,7 @@ public class MessageServiceImpl implements MessageService {
         }
 
         isParticipant = conversationParticipantRepository
-                .existsByConversation_IdAndUser_Id(conversationId, userId);
+                .existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, userId);
         if (!isParticipant) {
             log.warn("User {} attempted to read conversation {} without being a participant", userId, conversationId);
             throw new AppException(ErrorCode.FORBIDDEN, "Bạn không phải là thành viên của cuộc hội thoại này");

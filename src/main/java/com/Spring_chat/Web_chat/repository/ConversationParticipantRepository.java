@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -16,6 +17,7 @@ public interface ConversationParticipantRepository extends JpaRepository<Convers
     List<ConversationParticipant> findByUser_Id(Long userId);
     List<ConversationParticipant> findAllByConversation_IdOrderByJoinedAtAsc(Long conversationId);
     boolean existsByConversation_IdAndUser_Id(Long conversationId, Long userId);
+    boolean existsByConversation_IdAndUser_IdAndLeftAtIsNull(Long conversationId, Long userId);
 
     /**
      * Lấy danh sách conversations của user theo inbox order (cursor-based pagination).
@@ -99,7 +101,7 @@ public interface ConversationParticipantRepository extends JpaRepository<Convers
             @Param("userId") Long   userId,
             @Param("cursor") OffsetDateTime cursor,
             @Param("limit")  int    limit,
-            @Param("onlineThreshold") OffsetDateTime onlineThreshold
+            @Param("onlineThreshold") Instant onlineThreshold
             );
 
     ConversationParticipant findByConversation_IdAndUser(Long conversationId, User user);

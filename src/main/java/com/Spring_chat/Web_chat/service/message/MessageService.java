@@ -8,4 +8,5 @@ import com.Spring_chat.Web_chat.dto.message.SendMessageResponseDTO;
 public interface MessageService {
     ApiResponse<MessageListResponseDTO> getMessageList(Long beforeId, Integer limit,Long conversationId);
     ApiResponse<SendMessageResponseDTO> sendMessage(Long conversationId, SendMessageRequestDTO request);
+    void invalidateParticipantCache(Long conversationId, Long userId);
 }
