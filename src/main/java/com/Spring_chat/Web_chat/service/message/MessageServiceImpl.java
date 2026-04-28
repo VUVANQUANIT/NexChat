@@ -232,7 +232,7 @@ public class MessageServiceImpl implements MessageService {
                 userId,
                 conversationId,
                 lastReadMessage.getId(),
-                Instant.now()
+                Instant.now() // Sử dụng Instant.now() (chuẩn UTC) để đồng bộ thời gian trên hệ thống phân tán
         );
 
         int unreadCount = Math.toIntExact(messageDeliveryStatusRepo.countUnreadMessages(userId, conversationId));
@@ -242,7 +242,6 @@ public class MessageServiceImpl implements MessageService {
                 .unreadCount(unreadCount)
                 .build();
 
-        participantCache.put(userId + ":" + conversationId, true);
         return ApiResponse.ok("Read receipt updated", response);
     }
 
