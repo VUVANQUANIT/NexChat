@@ -99,7 +99,7 @@ class MessageServiceImplTest {
             Long beforeId = null;
 
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_Id(conversationId, currentUser.getId()))
+            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
                     .willReturn(true);
 
             List<MessageRowProjection> mockRows = new ArrayList<>();
@@ -145,7 +145,7 @@ class MessageServiceImplTest {
             Instant beforeCreatedAt = Instant.now().minusSeconds(60);
 
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_Id(conversationId, currentUser.getId()))
+            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
                     .willReturn(true);
             given(messageRepository.findCreatedAtById(beforeId)).willReturn(beforeCreatedAt);
 
@@ -193,7 +193,7 @@ class MessageServiceImplTest {
             Long conversationId = 100L;
 
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_Id(conversationId, currentUser.getId()))
+            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
                     .willReturn(true);
 
             MessageRowProjection row = mock(MessageRowProjection.class);
@@ -232,7 +232,7 @@ class MessageServiceImplTest {
             Long conversationId = 100L;
 
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_Id(conversationId, currentUser.getId()))
+            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
                     .willReturn(false);
 
             // When & Then
@@ -252,7 +252,7 @@ class MessageServiceImplTest {
             Long beforeId = null;
 
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_Id(conversationId, currentUser.getId()))
+            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
                     .willReturn(true);
             given(messageRepository.findMessagesByConversation(anyLong(), anyLong(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(org.springframework.data.domain.Pageable.class)))
                     .willReturn(new ArrayList<>());

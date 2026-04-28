@@ -15,6 +15,7 @@ import com.Spring_chat.Web_chat.exception.ErrorCode;
 import com.Spring_chat.Web_chat.mappers.ConversationMapper;
 import com.Spring_chat.Web_chat.repository.*;
 import com.Spring_chat.Web_chat.service.common.CurrentUserProvider;
+import com.Spring_chat.Web_chat.service.message.MessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -23,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -37,6 +37,7 @@ public class ConversationServiceImpl implements ConversationService {
     private final ConversationParticipantRepository conversationParticipantRepository;
     private final ConversationMapper conversationMapper;
     private final FriendshipRepository friendshipRepository;
+    private final MessageService messageService;
 
     @Override
     @Transactional
@@ -140,7 +141,7 @@ public class ConversationServiceImpl implements ConversationService {
         User currentUser = currentUserProvider.findCurrentUserOrThrow();
 
         int limit = Math.min(pageable.getPageSize(), 50);
-        OffsetDateTime onlineThreshold = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(5);
+        Instant onlineThreshold = Instant.now().minusSeconds(5 * 60L);
 
         OffsetDateTime cursor = null;
         if (cursorStr != null && !cursorStr.isBlank()) {
@@ -184,7 +185,7 @@ public class ConversationServiceImpl implements ConversationService {
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Conversation not found"));
 
-        if (!conversationParticipantRepository.existsByConversation_IdAndUser_Id(conversationId, currentUser.getId())) {
+        if (!conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId())) {
             throw new AppException(ErrorCode.FORBIDDEN, "You are not a participant of this conversation");
         }
 
@@ -281,7 +282,7 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ApiResponse<Void> removeParticipantFromConversation(Long conversationId, Long userId) {
         User currentUser = currentUserProvider.findCurrentUserOrThrow();
         // Lock conversation row to serialize owner-transfer decisions under concurrent leave/kick requests.
@@ -297,7 +298,8 @@ public class ConversationServiceImpl implements ConversationService {
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Người dùng không phải thành viên của nhóm"));
 
         if (targetParticipant.getLeftAt() != null) {
-             return ApiResponse.ok("User already left", null); // Idempotent: already left
+            messageService.invalidateParticipantCache(conversationId, userId);
+            return ApiResponse.ok("User already left", null); // Idempotent: already left
         }
 
         // Quyền kick/leave đã được check ở Controller layer bằng @PreAuthorize
@@ -308,6 +310,7 @@ public class ConversationServiceImpl implements ConversationService {
         // Thực hiện rời nhóm/kick
         targetParticipant.setLeftAt(Instant.now());
         conversationParticipantRepository.save(targetParticipant);
+        messageService.invalidateParticipantCache(conversationId, userId);
 
         // Nếu chủ nhóm rời đi -> chuyển quyền owner
         if (isSelf && isOwner) {
@@ -326,21 +329,9 @@ public class ConversationServiceImpl implements ConversationService {
             conversation.setOwner(nextOwnerParticipant.get().getUser());
             conversationRepository.save(conversation);
         } else {
-            // Kiểm tra tuyệt đối xem còn bất kỳ active participant nào khác không để tránh lock nhầm
-            // findFirstBy... ở trên thực tế đã là check rồi, nhưng thêm bước này để chắc chắn theo feedback
-            boolean hasOtherActiveMembers = conversationParticipantRepository
-                    .existsByConversation_IdAndUser_IdNotAndLeftAtIsNull(conversation.getId(), leavingOwnerId);
-
-            if (!hasOtherActiveMembers) {
-                // Không còn ai trong nhóm -> Xóa owner và set status INACTIVE
-                conversation.setOwner(null);
-                conversation.setStatus(ConversationStatus.INACTIVE);
-                conversationRepository.save(conversation);
-            } else {
-                // Trường hợp hy hữu: findFirst không ra nhưng exists lại có (có thể do race condition hoặc lỗi query)
-                // Log cảnh báo và không set INACTIVE
-                log.warn("Potential race condition in transferOwnership for conversation {}. findFirst was empty but exists returned true.", conversation.getId());
-            }
+            conversation.setOwner(null);
+            conversation.setStatus(ConversationStatus.INACTIVE);
+            conversationRepository.save(conversation);
         }
     }
 
