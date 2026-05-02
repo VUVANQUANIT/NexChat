@@ -38,3 +38,4 @@ build/
 logs/
 *.log
 *.log.gz
+logs/spring-chat.log

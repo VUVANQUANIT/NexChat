@@ -19,6 +19,7 @@ import com.Spring_chat.Web_chat.entity.Message;
 import com.Spring_chat.Web_chat.entity.MessageStatus;
 import com.Spring_chat.Web_chat.entity.User;
 import com.Spring_chat.Web_chat.enums.ConversationStatus;
+import com.Spring_chat.Web_chat.enums.MessageDeleteScope;
 import com.Spring_chat.Web_chat.enums.MessageDeliveryStatus;
 import com.Spring_chat.Web_chat.enums.MessageType;
 import com.Spring_chat.Web_chat.exception.AppException;
@@ -29,6 +30,7 @@ import com.Spring_chat.Web_chat.repository.MessageDeliveryStatusRepo;
 import com.Spring_chat.Web_chat.repository.MessageRepository;
 import com.Spring_chat.Web_chat.event.MessageEditedEvent;
 import com.Spring_chat.Web_chat.service.common.CurrentUserProvider;
+import com.Spring_chat.Web_chat.service.message.delete.MessageDeletionService;
 import com.Spring_chat.Web_chat.service.message.edit.MessageEditValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -63,6 +65,7 @@ public class MessageServiceImpl implements MessageService {
     private final StringRedisTemplate stringRedisTemplate;
     private final MessageEditValidator messageEditValidator;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final MessageDeletionService messageDeletionService;
 
     private static final Duration IDEMPOTENCY_TTL = Duration.ofSeconds(30);
     private static final String IDEMPOTENCY_PREFIX = "chat:idempotency:send-message:";
@@ -258,6 +261,11 @@ public class MessageServiceImpl implements MessageService {
         ));
 
         return ApiResponse.ok("Message updated", toUpdateMessageResponse(saved, currentUser));
+    }
+
+    @Override
+    public void deleteMessage(long messageId, MessageDeleteScope scope) {
+        messageDeletionService.deleteMessage(messageId, scope);
     }
 
     @Override
@@ -498,8 +506,8 @@ public class MessageServiceImpl implements MessageService {
         dto.setType(row.getType());
         dto.setReplyTo(row.getReplyToId());
         dto.setEdited(row.getIsEdited() != null && row.getIsEdited());
-        dto.setEditedAt(row.getEditedAt());
-        dto.setCreatedAt(row.getCreatedAt());
+        dto.setEditedAt(row.getEditedAt() != null ? row.getEditedAt().toInstant() : null);
+        dto.setCreatedAt(row.getCreatedAt() != null ? row.getCreatedAt().toInstant() : null);
         dto.setMyStatus(row.getMyStatus());
         dto.setDeliveryStatuses(deliveryStatuses);
         

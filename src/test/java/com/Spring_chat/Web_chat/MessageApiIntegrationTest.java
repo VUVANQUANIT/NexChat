@@ -18,6 +18,8 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -277,6 +279,151 @@ class MessageApiIntegrationTest {
                                 """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    void deleteMessage_scopeMe_HiddenOnlyForActor() throws Exception {
+        long conversationId = createGroupConversation(alice.token, "Hide Me Team", bob.id, carol.id);
+        sendTextMessage(alice.token, conversationId, "first");
+        long messageToHide = sendTextMessage(alice.token, conversationId, "hide this");
+        sendTextMessage(alice.token, conversationId, "last");
+
+        mockMvc.perform(delete("/api/messages/{id}", messageToHide)
+                        .header("Authorization", "Bearer " + bob.token)
+                        .param("scope", "ME"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/conversations/{id}/messages", conversationId)
+                        .header("Authorization", "Bearer " + bob.token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(2));
+
+        mockMvc.perform(get("/api/conversations/{id}/messages", conversationId)
+                        .header("Authorization", "Bearer " + carol.token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(3));
+    }
+
+    @Test
+    void deleteMessage_scopeMe_Idempotent_NoContent() throws Exception {
+        long conversationId = createGroupConversation(alice.token, "Hide Idem Team", bob.id, carol.id);
+        long messageId = sendTextMessage(alice.token, conversationId, "once");
+
+        mockMvc.perform(delete("/api/messages/{id}", messageId)
+                        .header("Authorization", "Bearer " + bob.token)
+                        .param("scope", "ME"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(delete("/api/messages/{id}", messageId)
+                        .header("Authorization", "Bearer " + bob.token)
+                        .param("scope", "ME"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void deleteMessage_scopeAll_Sender_SoftDeletesForEveryone() throws Exception {
+        long conversationId = createGroupConversation(alice.token, "All Del Team", bob.id, carol.id);
+        long messageId = sendTextMessage(alice.token, conversationId, "bye all");
+
+        mockMvc.perform(delete("/api/messages/{id}", messageId)
+                        .header("Authorization", "Bearer " + alice.token)
+                        .param("scope", "ALL"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/conversations/{id}/messages", conversationId)
+                        .header("Authorization", "Bearer " + bob.token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].id").value(messageId))
+                .andExpect(jsonPath("$.data.items[0].isDeleted").value(true))
+                .andExpect(jsonPath("$.data.items[0].content").value(nullValue()));
+    }
+
+    @Test
+    void deleteMessage_scopeAll_NotSender_ReturnsForbidden() throws Exception {
+        long conversationId = createGroupConversation(alice.token, "All Perm Team", bob.id, carol.id);
+        long messageId = sendTextMessage(alice.token, conversationId, "alice msg");
+
+        mockMvc.perform(delete("/api/messages/{id}", messageId)
+                        .header("Authorization", "Bearer " + bob.token)
+                        .param("scope", "ALL"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void deleteMessage_scopeAll_OutsideWindow_ReturnsUnprocessable() throws Exception {
+        long conversationId = createGroupConversation(alice.token, "Stale Del Team", bob.id, carol.id);
+        long messageId = sendTextMessage(alice.token, conversationId, "old del");
+        Instant oldCreated = Instant.now().minusSeconds(31 * 60);
+        jdbcTemplate.update("UPDATE messages SET created_at = ? WHERE id = ?", Timestamp.from(oldCreated), messageId);
+
+        mockMvc.perform(delete("/api/messages/{id}", messageId)
+                        .header("Authorization", "Bearer " + alice.token)
+                        .param("scope", "ALL"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("BUSINESS_RULE_VIOLATED"));
+    }
+
+    @Test
+    void deleteMessage_scopeAll_Idempotent_NoContent() throws Exception {
+        long conversationId = createGroupConversation(alice.token, "All Idem Team", bob.id, carol.id);
+        long messageId = sendTextMessage(alice.token, conversationId, "twice");
+
+        mockMvc.perform(delete("/api/messages/{id}", messageId)
+                        .header("Authorization", "Bearer " + alice.token)
+                        .param("scope", "ALL"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(delete("/api/messages/{id}", messageId)
+                        .header("Authorization", "Bearer " + alice.token)
+                        .param("scope", "ALL"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void deleteMessage_MissingScope_ReturnsBadRequest() throws Exception {
+        long conversationId = createGroupConversation(alice.token, "Miss Scope Team", bob.id, carol.id);
+        long messageId = sendTextMessage(alice.token, conversationId, "x");
+
+        mockMvc.perform(delete("/api/messages/{id}", messageId)
+                        .header("Authorization", "Bearer " + alice.token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MISSING_PARAMETER"));
+    }
+
+    @Test
+    void deleteMessage_InvalidScope_ReturnsValidationFailed() throws Exception {
+        long conversationId = createGroupConversation(alice.token, "Bad Scope Team", bob.id, carol.id);
+        long messageId = sendTextMessage(alice.token, conversationId, "x");
+
+        mockMvc.perform(delete("/api/messages/{id}", messageId)
+                        .header("Authorization", "Bearer " + alice.token)
+                        .param("scope", "EVERYONE"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void deleteMessage_UnknownMessage_ReturnsNotFound() throws Exception {
+        createGroupConversation(alice.token, "Nf Del Team", bob.id, carol.id);
+
+        mockMvc.perform(delete("/api/messages/{id}", 999_999_999L)
+                        .header("Authorization", "Bearer " + alice.token)
+                        .param("scope", "ME"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    void deleteMessage_NotParticipant_ReturnsForbidden() throws Exception {
+        long conversationId = createGroupConversation(alice.token, "Out Del Team", bob.id, carol.id);
+        long messageId = sendTextMessage(alice.token, conversationId, "secret");
+
+        mockMvc.perform(delete("/api/messages/{id}", messageId)
+                        .header("Authorization", "Bearer " + dave.token)
+                        .param("scope", "ME"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     private long createGroupConversation(String token, String title, Long... participantIds) throws Exception {
