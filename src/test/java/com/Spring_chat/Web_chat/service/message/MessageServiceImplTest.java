@@ -22,6 +22,8 @@ import com.Spring_chat.Web_chat.repository.ConversationRepository;
 import com.Spring_chat.Web_chat.repository.MessageDeliveryStatusRepo;
 import com.Spring_chat.Web_chat.repository.MessageRepository;
 import com.Spring_chat.Web_chat.service.common.CurrentUserProvider;
+import com.Spring_chat.Web_chat.service.message.delete.MessageDeletionService;
+import com.Spring_chat.Web_chat.service.message.edit.MessageEditValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -32,10 +34,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -78,6 +83,15 @@ class MessageServiceImplTest {
     @Mock
     private ValueOperations<String, String> valueOperations;
 
+    @Mock
+    private MessageEditValidator messageEditValidator;
+
+    @Mock
+    private ApplicationEventPublisher applicationEventPublisher;
+
+    @Mock
+    private MessageDeletionService messageDeletionService;
+
     @InjectMocks
     private MessageServiceImpl messageService;
 
@@ -113,7 +127,8 @@ class MessageServiceImplTest {
                 given(row.getIsDeleted()).willReturn(false);
                 given(row.getIsEdited()).willReturn(false);
                 given(row.getType()).willReturn(MessageType.TEXT);
-                given(row.getCreatedAt()).willReturn(Instant.now());
+                given(row.getCreatedAt()).willReturn(OffsetDateTime.ofInstant(Instant.now(), ZoneOffset.UTC));
+                given(row.getEditedAt()).willReturn(null);
                 given(row.getSenderId()).willReturn(2L);
                 given(row.getSenderUsername()).willReturn("sender2");
                 given(row.getSenderAvatar()).willReturn("avatar2");
@@ -161,7 +176,8 @@ class MessageServiceImplTest {
                     given(row.getIsDeleted()).willReturn(false);
                     given(row.getIsEdited()).willReturn(false);
                     given(row.getType()).willReturn(MessageType.TEXT);
-                    given(row.getCreatedAt()).willReturn(Instant.now());
+                    given(row.getCreatedAt()).willReturn(OffsetDateTime.ofInstant(Instant.now(), ZoneOffset.UTC));
+                    given(row.getEditedAt()).willReturn(null);
                     given(row.getSenderId()).willReturn(2L);
                     given(row.getSenderUsername()).willReturn("sender2");
                     given(row.getSenderAvatar()).willReturn("avatar2");
@@ -207,7 +223,8 @@ class MessageServiceImplTest {
             given(row.getSenderUsername()).willReturn("sender2");
             given(row.getSenderAvatar()).willReturn("avatar2");
             given(row.getType()).willReturn(MessageType.TEXT);
-            given(row.getCreatedAt()).willReturn(Instant.now());
+            given(row.getCreatedAt()).willReturn(OffsetDateTime.ofInstant(Instant.now(), ZoneOffset.UTC));
+            given(row.getEditedAt()).willReturn(null);
             given(row.getMyStatus()).willReturn(MessageDeliveryStatus.SENT);
 
             List<MessageRowProjection> mockRows = new ArrayList<>();
