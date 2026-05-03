@@ -6,6 +6,7 @@ import com.Spring_chat.Web_chat.dto.message.ReadReceiptRequestDTO;
 import com.Spring_chat.Web_chat.dto.message.ReadReceiptResponseDTO;
 import com.Spring_chat.Web_chat.dto.message.SendMessageRequestDTO;
 import com.Spring_chat.Web_chat.dto.message.SendMessageResponseDTO;
+import com.Spring_chat.Web_chat.dto.message.UnreadCountResponseDTO;
 import jakarta.validation.Valid;
 import com.Spring_chat.Web_chat.service.message.MessageService;
 import jakarta.validation.constraints.Max;
@@ -54,6 +55,13 @@ public class MessageController {
             @Valid @RequestBody ReadReceiptRequestDTO request
     ) {
         return ResponseEntity.ok(messageService.markAsRead(id, request));
+    }
+
+    @GetMapping("/{id}/unread-count")
+    public ResponseEntity<ApiResponse<UnreadCountResponseDTO>> getUnreadCount(
+            @PathVariable("id") Long id
+    ) {
+        return ResponseEntity.ok(messageService.getUnreadCount(id));
     }
 }
 

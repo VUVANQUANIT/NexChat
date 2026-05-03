@@ -13,6 +13,7 @@ import com.Spring_chat.Web_chat.dto.message.EditedByDTO;
 import com.Spring_chat.Web_chat.dto.message.SendMessageRequestDTO;
 import com.Spring_chat.Web_chat.dto.message.SendMessageResponseDTO;
 import com.Spring_chat.Web_chat.dto.message.SenderDTO;
+import com.Spring_chat.Web_chat.dto.message.UnreadCountResponseDTO;
 import com.Spring_chat.Web_chat.dto.message.UpdateMessageRequestDTO;
 import com.Spring_chat.Web_chat.dto.message.UpdateMessageResponseDTO;
 import com.Spring_chat.Web_chat.entity.Conversation;
@@ -349,6 +350,22 @@ public class MessageServiceImpl implements MessageService {
                 .build();
 
         return ApiResponse.ok("Read receipt updated", response);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ApiResponse<UnreadCountResponseDTO> getUnreadCount(Long conversationId) {
+        User currentUser = currentUserProvider.findCurrentUserOrThrow();
+        Long userId = currentUser.getId();
+
+        validateParticipant(conversationId, userId);
+
+        long unreadCount = messageDeliveryStatusRepo.countUnreadMessages(userId, conversationId, MessageDeliveryStatus.SEEN);
+        UnreadCountResponseDTO response = UnreadCountResponseDTO.builder()
+                .conversationId(conversationId)
+                .unreadCount(unreadCount)
+                .build();
+        return ApiResponse.ok("OK", response);
     }
 
     @Override

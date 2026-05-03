@@ -9,6 +9,7 @@ import com.Spring_chat.Web_chat.dto.message.ReadReceiptRequestDTO;
 import com.Spring_chat.Web_chat.dto.message.ReadReceiptResponseDTO;
 import com.Spring_chat.Web_chat.dto.message.SendMessageRequestDTO;
 import com.Spring_chat.Web_chat.dto.message.SendMessageResponseDTO;
+import com.Spring_chat.Web_chat.dto.message.UnreadCountResponseDTO;
 import com.Spring_chat.Web_chat.entity.Conversation;
 import com.Spring_chat.Web_chat.entity.ConversationParticipant;
 import com.Spring_chat.Web_chat.entity.Message;
@@ -592,6 +593,44 @@ class MessageServiceImplTest {
                     .isEqualTo(ErrorCode.FORBIDDEN);
 
             verify(messageRepository, never()).findById(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("getUnreadCount")
+    class GetUnreadCount {
+        @Test
+        @DisplayName("Lấy unread count thành công khi là participant")
+        void getUnreadCount_Success() {
+            Long conversationId = 10L;
+            given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
+            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
+                    .willReturn(true);
+            given(messageDeliveryStatusRepo.countUnreadMessages(currentUser.getId(), conversationId, MessageDeliveryStatus.SEEN))
+                    .willReturn(7L);
+
+            ApiResponse<UnreadCountResponseDTO> response = messageService.getUnreadCount(conversationId);
+
+            assertThat(response.isSuccess()).isTrue();
+            assertThat(response.getMessage()).isEqualTo("OK");
+            assertThat(response.getData().getConversationId()).isEqualTo(conversationId);
+            assertThat(response.getData().getUnreadCount()).isEqualTo(7L);
+        }
+
+        @Test
+        @DisplayName("Không phải participant thì FORBIDDEN")
+        void getUnreadCount_ForbiddenWhenNotParticipant() {
+            Long conversationId = 10L;
+            given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
+            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
+                    .willReturn(false);
+
+            assertThatThrownBy(() -> messageService.getUnreadCount(conversationId))
+                    .isInstanceOf(AppException.class)
+                    .extracting(e -> ((AppException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+
+            verify(messageDeliveryStatusRepo, never()).countUnreadMessages(anyLong(), anyLong(), any());
         }
     }
 }

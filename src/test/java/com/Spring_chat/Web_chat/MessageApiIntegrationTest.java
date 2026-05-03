@@ -134,6 +134,41 @@ class MessageApiIntegrationTest {
     }
 
     @Test
+    void getUnreadCount_ValidRequest_ReturnsCurrentUnreadCount() throws Exception {
+        long conversationId = createGroupConversation(alice.token, "Unread Team", bob.id, carol.id);
+        long firstMessageId = sendTextMessage(alice.token, conversationId, "hello 1");
+        sendTextMessage(alice.token, conversationId, "hello 2");
+
+        mockMvc.perform(post("/api/conversations/{id}/read", conversationId)
+                        .header("Authorization", "Bearer " + bob.token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "lastReadMessageId": %d
+                                }
+                                """.formatted(firstMessageId)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/conversations/{id}/unread-count", conversationId)
+                        .header("Authorization", "Bearer " + bob.token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("OK"))
+                .andExpect(jsonPath("$.data.conversationId").value(conversationId))
+                .andExpect(jsonPath("$.data.unreadCount").value(1));
+    }
+
+    @Test
+    void getUnreadCount_NotParticipant_ReturnsForbidden() throws Exception {
+        long conversationId = createGroupConversation(alice.token, "Unread Forbidden Team", bob.id, carol.id);
+
+        mockMvc.perform(get("/api/conversations/{id}/unread-count", conversationId)
+                        .header("Authorization", "Bearer " + dave.token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
     void markAsDelivered_ValidRequest_OnlySentToDelivered() throws Exception {
         long conversationId = createGroupConversation(alice.token, "Delivered Team", bob.id, carol.id);
         long messageSeen = sendTextMessage(alice.token, conversationId, "seen-first");
