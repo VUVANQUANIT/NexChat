@@ -8,6 +8,7 @@ import com.Spring_chat.Web_chat.dto.message.ReadReceiptRequestDTO;
 import com.Spring_chat.Web_chat.dto.message.ReadReceiptResponseDTO;
 import com.Spring_chat.Web_chat.dto.message.SendMessageRequestDTO;
 import com.Spring_chat.Web_chat.dto.message.SendMessageResponseDTO;
+import com.Spring_chat.Web_chat.dto.message.UnreadCountResponseDTO;
 import com.Spring_chat.Web_chat.dto.message.UpdateMessageRequestDTO;
 import com.Spring_chat.Web_chat.dto.message.UpdateMessageResponseDTO;
 import com.Spring_chat.Web_chat.enums.MessageDeleteScope;
@@ -19,5 +20,6 @@ public interface MessageService {
     void deleteMessage(long messageId, MessageDeleteScope scope);
     ApiResponse<DeliveredReceiptResponseDTO> markAsDelivered(DeliveredReceiptRequestDTO request);
     ApiResponse<ReadReceiptResponseDTO> markAsRead(Long conversationId, ReadReceiptRequestDTO request);
+    ApiResponse<UnreadCountResponseDTO> getUnreadCount(Long conversationId);
     void invalidateParticipantCache(Long conversationId, Long userId);
 }
