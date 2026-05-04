@@ -14,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -75,6 +76,16 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleInvalidRefreshToken(
             InvalidRefreshTokenException ex, HttpServletRequest req) {
         return ApiErrorBuilder.toResponseEntity(ErrorCode.INVALID_REFRESH_TOKEN, ex.getMessage(), req.getRequestURI(), null);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiErrorResponse> handleMaxUploadSizeExceeded(
+            MaxUploadSizeExceededException ex, HttpServletRequest req) {
+        String detail = "File upload vượt quá giới hạn cho phép";
+        if (ex.getMaxUploadSize() >= 0) {
+            detail = "File upload vượt quá giới hạn " + ex.getMaxUploadSize() + " bytes";
+        }
+        return ApiErrorBuilder.toResponseEntity(ErrorCode.VALIDATION_FAILED, detail, req.getRequestURI(), null);
     }
 
     @ExceptionHandler(BadCredentialsException.class)
