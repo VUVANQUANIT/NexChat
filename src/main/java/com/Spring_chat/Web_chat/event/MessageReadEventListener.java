@@ -11,32 +11,26 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Component
-@Slf4j
 @RequiredArgsConstructor
-public class MessageDeletedEventListener {
+@Slf4j
+public class MessageReadEventListener {
 
     private final SimpMessagingTemplate messagingTemplate;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void onMessageDeleted(MessageDeletedEvent event) {
+    public void onReadUpdated(MessageReadEvent event) {
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("id", event.messageId());
         data.put("conversationId", event.conversationId());
-        data.put("deletedAt", event.deletedAt());
+        data.put("userId", event.userId());
+        data.put("lastReadMessageId", event.lastReadMessageId());
+        data.put("readAt", event.readAt());
 
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("event", "MESSAGE_DELETED");
+        payload.put("event", "READ_RECEIPT");
         payload.put("data", data);
 
         String destination = "/topic/conversations/" + event.conversationId();
         messagingTemplate.convertAndSend(destination, (Object) payload);
-
-        log.info(
-                "MESSAGE_DELETED messageId={} conversationId={} deletedBy={}",
-                event.messageId(),
-                event.conversationId(),
-                event.deletedByUserId()
-        );
-        log.debug("MESSAGE_DELETED pushed to destination={}", destination);
+        log.debug("READ_RECEIPT pushed to destination={}", destination);
     }
 }

@@ -32,6 +32,8 @@ import com.Spring_chat.Web_chat.repository.ConversationRepository;
 import com.Spring_chat.Web_chat.repository.MessageDeliveryStatusRepo;
 import com.Spring_chat.Web_chat.repository.MessageRepository;
 import com.Spring_chat.Web_chat.event.MessageEditedEvent;
+import com.Spring_chat.Web_chat.event.MessageCreatedEvent;
+import com.Spring_chat.Web_chat.event.MessageReadEvent;
 import com.Spring_chat.Web_chat.service.common.CurrentUserProvider;
 import com.Spring_chat.Web_chat.service.message.delete.MessageDeletionService;
 import com.Spring_chat.Web_chat.service.message.edit.MessageEditValidator;
@@ -213,7 +215,10 @@ public class MessageServiceImpl implements MessageService {
 
             participantCache.put(senderId + ":" + conversationId, true);
             persistIdempotencyResult(idempotencyKey, savedMessage.getId());
-            return ApiResponse.created("Message sent", toSendMessageResponse(savedMessage));
+
+            SendMessageResponseDTO response = toSendMessageResponse(savedMessage);
+            applicationEventPublisher.publishEvent(new MessageCreatedEvent(conversationId, response));
+            return ApiResponse.created("Message sent", response);
         } catch (RuntimeException ex) {
             releaseIdempotencyKey(idempotencyKey);
             throw ex;
@@ -331,6 +336,7 @@ public class MessageServiceImpl implements MessageService {
             return ApiResponse.ok("Read receipt updated (Idempotent)", response);
         }
 
+        Instant readAt = Instant.now();
         participant.setLastReadMessage(lastReadMessage);
         conversationParticipantRepository.save(participant);
 
@@ -338,7 +344,7 @@ public class MessageServiceImpl implements MessageService {
                 userId,
                 conversationId,
                 lastReadMessage.getId(),
-                Instant.now(), // Sử dụng Instant.now() (chuẩn UTC) để đồng bộ thời gian trên hệ thống phân tán
+                readAt, // Sử dụng Instant.now() (chuẩn UTC) để đồng bộ thời gian trên hệ thống phân tán
                 MessageDeliveryStatus.SEEN
         );
 
@@ -348,6 +354,13 @@ public class MessageServiceImpl implements MessageService {
                 .lastReadMessageId(lastReadMessage.getId())
                 .unreadCount(unreadCount)
                 .build();
+
+        applicationEventPublisher.publishEvent(new MessageReadEvent(
+                conversationId,
+                userId,
+                lastReadMessage.getId(),
+                readAt
+        ));
 
         return ApiResponse.ok("Read receipt updated", response);
     }

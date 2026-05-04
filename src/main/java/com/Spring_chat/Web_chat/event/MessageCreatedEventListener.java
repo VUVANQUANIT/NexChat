@@ -11,32 +11,20 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Component
-@Slf4j
 @RequiredArgsConstructor
-public class MessageDeletedEventListener {
+@Slf4j
+public class MessageCreatedEventListener {
 
     private final SimpMessagingTemplate messagingTemplate;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void onMessageDeleted(MessageDeletedEvent event) {
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("id", event.messageId());
-        data.put("conversationId", event.conversationId());
-        data.put("deletedAt", event.deletedAt());
-
+    public void onMessageCreated(MessageCreatedEvent event) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("event", "MESSAGE_DELETED");
-        payload.put("data", data);
+        payload.put("event", "MESSAGE_NEW");
+        payload.put("data", event.payload());
 
         String destination = "/topic/conversations/" + event.conversationId();
         messagingTemplate.convertAndSend(destination, (Object) payload);
-
-        log.info(
-                "MESSAGE_DELETED messageId={} conversationId={} deletedBy={}",
-                event.messageId(),
-                event.conversationId(),
-                event.deletedByUserId()
-        );
-        log.debug("MESSAGE_DELETED pushed to destination={}", destination);
+        log.debug("MESSAGE_NEW pushed to destination={}", destination);
     }
 }
