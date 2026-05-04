@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Answers;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.util.unit.DataSize;
@@ -19,7 +20,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,7 +56,7 @@ class CloudinaryServiceTest {
                 new byte[] {1, 2, 3}
         );
 
-        when(cloudinary.uploader().upload(any(byte[].class), anyMap())).thenReturn(Map.of(
+        when(cloudinary.uploader().upload(any(byte[].class), org.mockito.ArgumentMatchers.<Map<String, Object>>any())).thenReturn(Map.of(
                 "secure_url", "https://cdn.example.com/avatar.png",
                 "width", 1920,
                 "height", 1080,
@@ -70,21 +71,29 @@ class CloudinaryServiceTest {
         assertEquals(204800L, result.getSize());
         assertEquals("image/png", result.getMimeType());
 
-        verify(cloudinary.uploader()).upload(any(byte[].class), anyMap());
+        ArgumentCaptor<Map<String, Object>> optionsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(cloudinary.uploader()).upload(any(byte[].class), optionsCaptor.capture());
+
+        Map<String, Object> options = optionsCaptor.getValue();
+        assertEquals("spring_chat_uploads", options.get("folder"));
+        assertEquals(Boolean.FALSE, options.get("use_filename"));
+        assertEquals(Boolean.FALSE, options.get("unique_filename"));
+        assertEquals(Boolean.FALSE, options.get("overwrite"));
+        assertEquals(36, options.get("public_id").toString().length());
     }
 
     @Test
-    void uploadImage_shouldRejectFilesLargerThanConfiguredLimit() {
-        uploadProperties.setMaxFileSize(DataSize.ofBytes(2));
+    void uploadImage_shouldRejectNonImageMimeType() {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "avatar.png",
-                "image/png",
+                "payload.txt",
+                "text/plain",
                 new byte[] {1, 2, 3}
         );
 
         AppException ex = assertThrows(AppException.class, () -> cloudinaryService.uploadImage(file));
 
-        assertEquals("File size must not exceed 2B", ex.getMessage());
+        assertEquals("Only image files (jpg, jpeg, png, gif, webp) are allowed", ex.getMessage());
+        verify(cloudinary, never()).uploader();
     }
 }

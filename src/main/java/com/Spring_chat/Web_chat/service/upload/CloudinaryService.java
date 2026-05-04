@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Locale;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -28,9 +29,14 @@ public class CloudinaryService {
 
         try {
             String mimeType = normalizeMimeType(file.getContentType());
+            String publicId = UUID.randomUUID().toString();
             Map uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
                     "resource_type", "auto",
-                    "folder", uploadProperties.getCloudinaryFolder()
+                    "folder", uploadProperties.getCloudinaryFolder(),
+                    "public_id", publicId,
+                    "use_filename", false,
+                    "unique_filename", false,
+                    "overwrite", false
             ));
 
             return UploadImageResponseDTO.builder()
@@ -50,14 +56,6 @@ public class CloudinaryService {
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new AppException(ErrorCode.VALIDATION_FAILED, "File must not be empty");
-        }
-
-        if (uploadProperties.getMaxFileSize() != null
-                && file.getSize() > uploadProperties.getMaxFileSize().toBytes()) {
-            throw new AppException(
-                    ErrorCode.VALIDATION_FAILED,
-                    "File size must not exceed " + uploadProperties.getMaxFileSize()
-            );
         }
 
         String contentType = file.getContentType();
