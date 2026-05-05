@@ -3,8 +3,6 @@ package com.Spring_chat.Web_chat.dto.message;
 import com.Spring_chat.Web_chat.enums.MessageDeliveryStatus;
 import com.Spring_chat.Web_chat.enums.MessageType;
 
-import java.time.Instant;
-
 public interface MessageRowProjection {
     Long getId();
     Long getConversationId();
@@ -13,9 +11,9 @@ public interface MessageRowProjection {
     Long getReplyToId();
     Boolean getIsDeleted();
     Boolean getIsEdited();
-    /** Native timestamptz — Hibernate maps to {@link Instant} (UTC per JDBC). */
-    Instant getEditedAt();
-    Instant getCreatedAt();
+    /** Native query timestamp runtime type varies by dialect (Instant/OffsetDateTime/Timestamp). */
+    Object getEditedAt();
+    Object getCreatedAt();
     
     // Sender Info
     Long getSenderId();

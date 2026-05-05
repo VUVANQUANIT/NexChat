@@ -10,16 +10,16 @@ public interface ConversationRowProjection {
     String getType();
     String getTitle();
     String getAvatarUrl();
-    /** Native timestamptz — Hibernate maps to Instant (UTC). */
-    java.time.Instant getConversationCreatedAt();
+    /** Native query timestamp runtime type varies by dialect (Instant/OffsetDateTime/Timestamp). */
+    Object getConversationCreatedAt();
 
     Long getLastMessageId();
     String getLastMessageContent();
     String getLastMessageType();
     Long getLastMessageSenderId();
     String getSenderUsername();
-    /** Native timestamptz — Hibernate maps to Instant (UTC). */
-    java.time.Instant getLastMessageCreatedAt();
+    /** Native query timestamp runtime type varies by dialect (Instant/OffsetDateTime/Timestamp). */
+    Object getLastMessageCreatedAt();
     Boolean getLastMessageIsDeleted();
 
     Long getUnreadCount();

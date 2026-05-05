@@ -167,9 +167,10 @@ public class ConversationServiceImpl implements ConversationService {
         Instant nextCursor = null;
         if (hasMore && !page.isEmpty()) {
             ConversationRowProjection last = page.get(page.size() - 1);
-            nextCursor = last.getLastMessageCreatedAt() != null
-                    ? last.getLastMessageCreatedAt()
-                    : last.getConversationCreatedAt();
+            Instant lastMessageCreatedAt = toInstant(last.getLastMessageCreatedAt());
+            nextCursor = lastMessageCreatedAt != null
+                    ? lastMessageCreatedAt
+                    : toInstant(last.getConversationCreatedAt());
         }
 
         ConversationListDTO result = new ConversationListDTO();
@@ -403,7 +404,7 @@ public class ConversationServiceImpl implements ConversationService {
         dto.setType(ConversationType.valueOf(row.getType()));
         dto.setTitle(row.getTitle());
         dto.setAvatarUrl(row.getAvatarUrl());
-        dto.setCreatedAt(row.getConversationCreatedAt());
+        dto.setCreatedAt(toInstant(row.getConversationCreatedAt()));
 
         if (row.getLastMessageId() != null) {
             LastMessageDTO lastMsg = new LastMessageDTO();
@@ -413,7 +414,7 @@ public class ConversationServiceImpl implements ConversationService {
                     ? MessageType.valueOf(row.getLastMessageType()) : null);
             lastMsg.setSenderId(row.getLastMessageSenderId());
             lastMsg.setSenderUsername(row.getSenderUsername());
-            lastMsg.setCreatedAt(row.getLastMessageCreatedAt());
+            lastMsg.setCreatedAt(toInstant(row.getLastMessageCreatedAt()));
             lastMsg.setDeleted(Boolean.TRUE.equals(row.getLastMessageIsDeleted()));
             dto.setLastMessage(lastMsg);
         }
@@ -430,5 +431,24 @@ public class ConversationServiceImpl implements ConversationService {
         }
 
         return dto;
+    }
+
+    private Instant toInstant(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Instant instant) {
+            return instant;
+        }
+        if (value instanceof OffsetDateTime offsetDateTime) {
+            return offsetDateTime.toInstant();
+        }
+        if (value instanceof java.sql.Timestamp timestamp) {
+            return timestamp.toInstant();
+        }
+        if (value instanceof java.util.Date date) {
+            return date.toInstant();
+        }
+        throw new AppException(ErrorCode.INTERNAL_ERROR, "Không thể chuyển đổi kiểu timestamp từ native query");
     }
 }
