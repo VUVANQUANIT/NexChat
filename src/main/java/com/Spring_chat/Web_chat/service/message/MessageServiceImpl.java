@@ -39,7 +39,6 @@ import com.Spring_chat.Web_chat.service.message.delete.MessageDeletionService;
 import com.Spring_chat.Web_chat.service.message.edit.MessageEditValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.context.ApplicationEventPublisher;
@@ -52,11 +51,13 @@ import java.util.concurrent.TimeUnit;
 import java.time.Duration;
 import java.net.URI;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
@@ -97,15 +98,24 @@ public class MessageServiceImpl implements MessageService {
 
         Instant beforeCreatedAt = null;
         if (beforeId != null) {
-            beforeCreatedAt = messageRepository.findCreatedAtById(beforeId);
-            if (beforeCreatedAt == null) {
-                log.warn("beforeId {} not found for conversation {}", beforeId, conversationId);
+            Optional<Instant> anchor = messageRepository.findCreatedAtByIdAndConversationId(beforeId, conversationId);
+            if (anchor.isEmpty()) {
+                throw new AppException(
+                        ErrorCode.RESOURCE_NOT_FOUND,
+                        "beforeId không thuộc cuộc hội thoại này hoặc tin nhắn không tồn tại"
+                );
             }
+            beforeCreatedAt = anchor.get();
         }
 
-        // Fetch queryLimit + 1 to know if there's a next page using PageRequest
-        List<MessageRowProjection> rows = messageRepository.findMessagesByConversation(
-                conversationId, userId, beforeCreatedAt, beforeId, PageRequest.of(0, queryLimit + 1));
+        // Tách 2 query để tránh lỗi PostgreSQL "could not determine data type" khi truyền null vào prepared statement
+        List<MessageRowProjection> rows;
+        int fetchLimit = queryLimit + 1;
+        if (beforeCreatedAt == null) {
+            rows = messageRepository.findLatestMessages(conversationId, userId, fetchLimit);
+        } else {
+            rows = messageRepository.findMessagesBefore(conversationId, userId, beforeCreatedAt, beforeId, fetchLimit);
+        }
 
         boolean hasMore = rows.size() > queryLimit;
         if (hasMore) {
@@ -114,22 +124,24 @@ public class MessageServiceImpl implements MessageService {
         }
 
         List<Long> messageIds = rows.stream().map(MessageRowProjection::getId).toList();
-        
-        // Fetch all delivery statuses for these messages
-        List<MessageStatus> allStatuses = messageDeliveryStatusRepo.findAllByMessage_IdIn(messageIds);
-        
-        // Group by message ID
-        Map<Long, List<DeliveryStatusesDTO>> statusMap = allStatuses.stream()
-                .collect(Collectors.groupingBy(
-                        s -> s.getMessage().getId(),
-                        Collectors.mapping(s -> {
-                            DeliveryStatusesDTO d = new DeliveryStatusesDTO();
-                            d.setUserId(s.getUser().getId());
-                            d.setStatus(s.getStatus());
-                            d.setUpdatedAt(s.getUpdatedAt());
-                            return d;
-                        }, Collectors.toList())
-                ));
+
+        Map<Long, List<DeliveryStatusesDTO>> statusMap;
+        if (messageIds.isEmpty()) {
+            statusMap = Collections.emptyMap();
+        } else {
+            List<MessageStatus> allStatuses = messageDeliveryStatusRepo.findAllByMessage_IdIn(messageIds);
+            statusMap = allStatuses.stream()
+                    .collect(Collectors.groupingBy(
+                            s -> s.getMessage().getId(),
+                            Collectors.mapping(s -> {
+                                DeliveryStatusesDTO d = new DeliveryStatusesDTO();
+                                d.setUserId(s.getUser().getId());
+                                d.setStatus(s.getStatus());
+                                d.setUpdatedAt(s.getUpdatedAt());
+                                return d;
+                            }, Collectors.toList())
+                    ));
+        }
 
         log.debug("Found {} messages for conversation {}, hasMore={}", rows.size(), conversationId, hasMore);
 
@@ -578,12 +590,31 @@ public class MessageServiceImpl implements MessageService {
         dto.setType(row.getType());
         dto.setReplyTo(row.getReplyToId());
         dto.setEdited(row.getIsEdited() != null && row.getIsEdited());
-        dto.setEditedAt(row.getEditedAt() != null ? row.getEditedAt().toInstant() : null);
-        dto.setCreatedAt(row.getCreatedAt() != null ? row.getCreatedAt().toInstant() : null);
+        dto.setEditedAt(toInstant(row.getEditedAt()));
+        dto.setCreatedAt(toInstant(row.getCreatedAt()));
         dto.setMyStatus(row.getMyStatus());
         dto.setDeliveryStatuses(deliveryStatuses);
         
         return dto;
+    }
+
+    private Instant toInstant(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Instant instant) {
+            return instant;
+        }
+        if (value instanceof OffsetDateTime offsetDateTime) {
+            return offsetDateTime.toInstant();
+        }
+        if (value instanceof java.sql.Timestamp timestamp) {
+            return timestamp.toInstant();
+        }
+        if (value instanceof java.util.Date date) {
+            return date.toInstant();
+        }
+        throw new AppException(ErrorCode.INTERNAL_ERROR, "Không thể chuyển đổi kiểu timestamp từ native query");
     }
 
 }

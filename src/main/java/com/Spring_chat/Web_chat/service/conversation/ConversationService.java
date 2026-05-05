@@ -14,4 +14,10 @@ public interface ConversationService {
     ApiResponse<AddParticipantsResponseDTO> addUserToConversation(Long conversationId, AddParticipantsRequestDTO addParticipantsRequestDTO);
     ApiResponse<Void> removeParticipantFromConversation(Long conversationId, Long userId);
     boolean isOwner(Long conversationId);
+
+    /**
+     * Tự động tạo hoặc lấy PRIVATE conversation giữa 2 user sau khi accept friend.
+     * Chạy trong REQUIRES_NEW để tránh lây nhiễm rollback-only sang transaction của acceptFriend.
+     */
+    void autoCreatePrivateConversation(Long userId1, Long userId2);
 }

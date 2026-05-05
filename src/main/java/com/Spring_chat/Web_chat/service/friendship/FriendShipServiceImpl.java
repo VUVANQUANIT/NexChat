@@ -2,7 +2,6 @@ package com.Spring_chat.Web_chat.service.friendship;
 
 import com.Spring_chat.Web_chat.enums.FriendDirection;
 import com.Spring_chat.Web_chat.enums.FriendshipStatus;
-import com.Spring_chat.Web_chat.enums.UserStatus;
 import com.Spring_chat.Web_chat.dto.ApiResponse;
 import com.Spring_chat.Web_chat.dto.PageResponse;
 import com.Spring_chat.Web_chat.dto.friendship.*;
@@ -12,10 +11,7 @@ import com.Spring_chat.Web_chat.exception.AppException;
 import com.Spring_chat.Web_chat.exception.ErrorCode;
 import com.Spring_chat.Web_chat.mappers.FriendShipMapper;
 import com.Spring_chat.Web_chat.repository.FriendshipRepository;
-import com.Spring_chat.Web_chat.repository.UserRepository;
 import com.Spring_chat.Web_chat.service.common.CurrentUserProvider;
-import com.Spring_chat.Web_chat.dto.conversations.CreateConversationsDTO;
-import com.Spring_chat.Web_chat.enums.ConversationType;
 import com.Spring_chat.Web_chat.service.conversation.ConversationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,14 +21,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.List;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class FriendShipServiceImpl implements FriendShipService {
     private final FriendshipRepository friendshipRepository;
-    private final UserRepository userRepository;
     private final CurrentUserProvider currentUserProvider;
     private final FriendShipMapper friendShipMapper;
     private final ConversationService conversationService;
@@ -118,10 +112,9 @@ public class FriendShipServiceImpl implements FriendShipService {
 
     private void createPrivateConversation(User u1, User u2) {
         try {
-            CreateConversationsDTO createDTO = new CreateConversationsDTO();
-            createDTO.setType(ConversationType.PRIVATE);
-            createDTO.setParticipantIds(new Long[]{u1.getId()}); // ConversationService.createConversation adds current user
-            conversationService.createConversation(createDTO);
+            // Dùng REQUIRES_NEW để tránh transaction của acceptFriend bị rollback-only
+            // nếu tạo conversation thất bại (ví dụ duplicate concurrent, user không tồn tại).
+            conversationService.autoCreatePrivateConversation(u1.getId(), u2.getId());
         } catch (Exception e) {
             log.error("Failed to auto-create conversation between {} and {}: {}", u1.getId(), u2.getId(), e.getMessage());
         }

@@ -103,6 +103,74 @@ public interface ConversationParticipantRepository extends JpaRepository<Convers
             @Param("onlineThreshold") Instant onlineThreshold
             );
 
+    @Query(value = """
+            SELECT
+                c.id                                                    AS "id",
+                c.type                                                  AS "type",
+                c.title                                                 AS "title",
+                c.avatar_url                                            AS "avatarUrl",
+                c.created_at                                            AS "conversationCreatedAt",
+                m.id                                                    AS "lastMessageId",
+                m.content                                               AS "lastMessageContent",
+                m.type                                                  AS "lastMessageType",
+                m.sender_id                                             AS "lastMessageSenderId",
+                u.username                                              AS "senderUsername",
+                m.created_at                                            AS "lastMessageCreatedAt",
+                m.is_deleted                                            AS "lastMessageIsDeleted",
+                (
+                    SELECT COUNT(*)
+                    FROM   messages m3
+                    WHERE  m3.conversation_id = c.id
+                      AND  (
+                               CASE
+                                   WHEN cp.last_read_message_id IS NULL THEN TRUE
+                                   ELSE m3.created_at > (
+                                       SELECT m4.created_at FROM messages m4
+                                       WHERE  m4.id = cp.last_read_message_id
+                                   )
+                               END
+                           )
+                      AND  (
+                               cp.left_at IS NULL
+                               OR (cp.left_at IS NOT NULL AND m3.created_at <= cp.left_at)
+                           )
+                )                                                       AS "unreadCount",
+                CASE WHEN c.type = 'PRIVATE' THEN u2.id          ELSE NULL END AS "otherUserId",
+                CASE WHEN c.type = 'PRIVATE' THEN u2.username    ELSE NULL END AS "otherUsername",
+                CASE WHEN c.type = 'PRIVATE' THEN u2.avatar_url  ELSE NULL END AS "otherAvatarUrl",
+                CASE
+                    WHEN c.type = 'PRIVATE' AND u2.last_seen > :onlineThreshold THEN TRUE
+                    WHEN c.type = 'PRIVATE' THEN FALSE
+                    ELSE NULL
+                END                                                     AS "isOnline"
+            FROM  conversation_participants cp
+            JOIN  conversations c ON c.id = cp.conversation_id
+            LEFT JOIN messages m ON m.id = (
+                SELECT id FROM messages m2
+                WHERE  m2.conversation_id = c.id
+                  AND  (
+                           (cp.left_at IS NULL)
+                           OR (cp.left_at IS NOT NULL AND m2.created_at <= cp.left_at)
+                       )
+                ORDER BY m2.created_at DESC
+                LIMIT 1
+            )
+            LEFT JOIN users u   ON u.id = m.sender_id
+            LEFT JOIN conversation_participants cp2
+                   ON cp2.conversation_id = c.id
+                  AND cp2.user_id != cp.user_id
+                  AND c.type = 'PRIVATE'
+            LEFT JOIN users u2  ON u2.id = cp2.user_id
+            WHERE cp.user_id = :userId
+            ORDER BY COALESCE(m.created_at, c.created_at) DESC, c.id DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<ConversationRowProjection> findUserConversationsFirstPage(
+            @Param("userId") Long userId,
+            @Param("limit") int limit,
+            @Param("onlineThreshold") Instant onlineThreshold
+    );
+
     ConversationParticipant findByConversation_IdAndUser(Long conversationId, User user);
     java.util.Optional<ConversationParticipant> findByConversation_IdAndUser_Id(Long conversationId, Long userId);
     java.util.Optional<ConversationParticipant> findByConversation_IdAndUser_IdAndLeftAtIsNull(Long conversationId, Long userId);
