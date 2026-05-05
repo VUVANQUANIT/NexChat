@@ -25,7 +25,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.data.domain.PageRequest;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -34,8 +36,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyIterable;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class ConversationServiceImplTest {
@@ -312,6 +317,47 @@ class ConversationServiceImplTest {
                     .isInstanceOf(AppException.class)
                     .extracting(e -> ((AppException) e).getErrorCode())
                     .isEqualTo(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    @Nested
+    @DisplayName("getUserConversation")
+    class GetUserConversation {
+
+        @Test
+        @DisplayName("cursor null -> dùng truy vấn trang đầu")
+        void firstPageShouldUseFirstPageQuery() {
+            setCurrentUser(1L, "alice");
+            User alice = User.builder().id(1L).username("alice").build();
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(alice));
+            given(conversationParticipantRepository.findUserConversationsFirstPage(eq(1L), eq(21), any(Instant.class)))
+                    .willReturn(List.of());
+
+            conversationService.getUserConversation(PageRequest.of(0, 20), null);
+
+            then(conversationParticipantRepository).should().findUserConversationsFirstPage(eq(1L), eq(21), any(Instant.class));
+            then(conversationParticipantRepository).should(never()).findUserConversations(any(), any(), anyInt(), any());
+        }
+
+        @Test
+        @DisplayName("cursor có giá trị -> dùng truy vấn phân trang")
+        void cursorPageShouldUseCursorQuery() {
+            setCurrentUser(1L, "alice");
+            User alice = User.builder().id(1L).username("alice").build();
+            Instant cursor = Instant.parse("2026-05-04T00:00:00Z");
+
+            given(userRepository.findById(1L)).willReturn(Optional.of(alice));
+            given(conversationParticipantRepository.findUserConversations(eq(1L), eq(cursor.atOffset(java.time.ZoneOffset.UTC)), eq(21), any(Instant.class)))
+                    .willReturn(List.of());
+
+            conversationService.getUserConversation(
+                    PageRequest.of(0, 20),
+                    cursor.toString()
+            );
+
+            then(conversationParticipantRepository).should(never()).findUserConversationsFirstPage(any(), anyInt(), any());
+            then(conversationParticipantRepository).should().findUserConversations(eq(1L), eq(cursor.atOffset(java.time.ZoneOffset.UTC)), eq(21), any(Instant.class));
         }
     }
 
