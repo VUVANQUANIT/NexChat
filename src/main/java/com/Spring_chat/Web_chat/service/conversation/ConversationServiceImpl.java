@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -152,8 +153,9 @@ public class ConversationServiceImpl implements ConversationService {
             }
         }
 
-        List<ConversationRowProjection> rows = conversationParticipantRepository
-                .findUserConversations(currentUser.getId(), cursor, limit + 1, onlineThreshold);
+        List<ConversationRowProjection> rows = (cursor == null)
+                ? conversationParticipantRepository.findUserConversationsFirstPage(currentUser.getId(), limit + 1, onlineThreshold)
+                : conversationParticipantRepository.findUserConversations(currentUser.getId(), cursor, limit + 1, onlineThreshold);
 
         boolean hasMore = rows.size() > limit;
         List<ConversationRowProjection> page = hasMore ? rows.subList(0, limit) : rows;
@@ -166,8 +168,8 @@ public class ConversationServiceImpl implements ConversationService {
         if (hasMore && !page.isEmpty()) {
             ConversationRowProjection last = page.get(page.size() - 1);
             nextCursor = last.getLastMessageCreatedAt() != null
-                    ? last.getLastMessageCreatedAt().toInstant()
-                    : (last.getConversationCreatedAt() != null ? last.getConversationCreatedAt().toInstant() : null);
+                    ? last.getLastMessageCreatedAt()
+                    : last.getConversationCreatedAt();
         }
 
         ConversationListDTO result = new ConversationListDTO();
@@ -194,6 +196,41 @@ public class ConversationServiceImpl implements ConversationService {
 
         ConversationDetailDTO detailDTO = conversationMapper.toConversationDetailDTO(conversation, participants);
         return ApiResponse.ok("OK", detailDTO);
+    }
+
+    /**
+     * Tạo/lấy PRIVATE conversation giữa hai user sau khi accept friend.
+     * REQUIRES_NEW: chạy trong transaction riêng để không làm rollback-only
+     * transaction của acceptFriend khi có lỗi (ví dụ conversation đã tồn tại,
+     * user không tồn tại, hoặc lỗi concurrent).
+     */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void autoCreatePrivateConversation(Long userId1, Long userId2) {
+        User user1 = userRepository.findById(userId1)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "User không tồn tại: " + userId1));
+        User user2 = userRepository.findById(userId2)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "User không tồn tại: " + userId2));
+
+        Conversation existing = conversationRepository
+                .findPrivateBetween(ConversationType.PRIVATE, userId1, userId2)
+                .orElse(null);
+        if (existing != null) {
+            log.debug("Private conversation between {} and {} already exists (id={})", userId1, userId2, existing.getId());
+            return;
+        }
+
+        Conversation conversation = Conversation.builder()
+                .type(ConversationType.PRIVATE)
+                .build();
+        conversationRepository.save(conversation);
+
+        List<ConversationParticipant> participants = List.of(
+                ConversationParticipant.builder().conversation(conversation).user(user1).build(),
+                ConversationParticipant.builder().conversation(conversation).user(user2).build()
+        );
+        conversationParticipantRepository.saveAll(participants);
+        log.info("Auto-created PRIVATE conversation {} between user {} and {}", conversation.getId(), userId1, userId2);
     }
 
     @Override
@@ -366,7 +403,7 @@ public class ConversationServiceImpl implements ConversationService {
         dto.setType(ConversationType.valueOf(row.getType()));
         dto.setTitle(row.getTitle());
         dto.setAvatarUrl(row.getAvatarUrl());
-        dto.setCreatedAt(row.getConversationCreatedAt() != null ? row.getConversationCreatedAt().toInstant() : null);
+        dto.setCreatedAt(row.getConversationCreatedAt());
 
         if (row.getLastMessageId() != null) {
             LastMessageDTO lastMsg = new LastMessageDTO();
@@ -376,7 +413,7 @@ public class ConversationServiceImpl implements ConversationService {
                     ? MessageType.valueOf(row.getLastMessageType()) : null);
             lastMsg.setSenderId(row.getLastMessageSenderId());
             lastMsg.setSenderUsername(row.getSenderUsername());
-            lastMsg.setCreatedAt(row.getLastMessageCreatedAt() != null ? row.getLastMessageCreatedAt().toInstant() : null);
+            lastMsg.setCreatedAt(row.getLastMessageCreatedAt());
             lastMsg.setDeleted(Boolean.TRUE.equals(row.getLastMessageIsDeleted()));
             dto.setLastMessage(lastMsg);
         }

@@ -1,32 +1,31 @@
 package com.Spring_chat.Web_chat.dto.conversations;
 
-import java.time.Instant;
-
 /**
- * Spring Data JPA projection cho native query lấy danh sách conversations của user.
+ * Spring Data JPA projection for the conversation inbox native query.
  *
- * Các getter phải khớp (case-sensitive) với quoted alias trong SQL SELECT.
- * Xem ConversationParticipantRepository#findUserConversations.
+ * The getter types must match the native result mapping.
  */
 public interface ConversationRowProjection {
-    Long    getId();
-    String  getType();
-    String  getTitle();
-    String  getAvatarUrl();
-    java.time.OffsetDateTime getConversationCreatedAt();
+    Long getId();
+    String getType();
+    String getTitle();
+    String getAvatarUrl();
+    /** Native timestamptz — Hibernate maps to Instant (UTC). */
+    java.time.Instant getConversationCreatedAt();
 
-    Long    getLastMessageId();
-    String  getLastMessageContent();
-    String  getLastMessageType();
-    Long    getLastMessageSenderId();
-    String  getSenderUsername();
-    java.time.OffsetDateTime getLastMessageCreatedAt();
+    Long getLastMessageId();
+    String getLastMessageContent();
+    String getLastMessageType();
+    Long getLastMessageSenderId();
+    String getSenderUsername();
+    /** Native timestamptz — Hibernate maps to Instant (UTC). */
+    java.time.Instant getLastMessageCreatedAt();
     Boolean getLastMessageIsDeleted();
 
-    Long    getUnreadCount();
+    Long getUnreadCount();
 
-    Long    getOtherUserId();
-    String  getOtherUsername();
-    String  getOtherAvatarUrl();
+    Long getOtherUserId();
+    String getOtherUsername();
+    String getOtherAvatarUrl();
     Boolean getIsOnline();
 }

@@ -3,7 +3,7 @@ package com.Spring_chat.Web_chat.dto.message;
 import com.Spring_chat.Web_chat.enums.MessageDeliveryStatus;
 import com.Spring_chat.Web_chat.enums.MessageType;
 
-import java.time.OffsetDateTime;
+import java.time.Instant;
 
 public interface MessageRowProjection {
     Long getId();
@@ -13,9 +13,9 @@ public interface MessageRowProjection {
     Long getReplyToId();
     Boolean getIsDeleted();
     Boolean getIsEdited();
-    /** Native timestamptz maps to {@link OffsetDateTime} (H2 + PostgreSQL). */
-    OffsetDateTime getEditedAt();
-    OffsetDateTime getCreatedAt();
+    /** Native timestamptz — Hibernate maps to {@link Instant} (UTC per JDBC). */
+    Instant getEditedAt();
+    Instant getCreatedAt();
     
     // Sender Info
     Long getSenderId();
