@@ -4,29 +4,24 @@ import com.Spring_chat.Web_chat.dto.ApiResponse;
 import com.Spring_chat.Web_chat.dto.conversations.*;
 import com.Spring_chat.Web_chat.entity.Conversation;
 import com.Spring_chat.Web_chat.entity.ConversationParticipant;
-import com.Spring_chat.Web_chat.entity.Friendship;
 import com.Spring_chat.Web_chat.entity.User;
-import com.Spring_chat.Web_chat.enums.ConversationStatus;
 import com.Spring_chat.Web_chat.enums.ConversationType;
-import com.Spring_chat.Web_chat.enums.FriendshipStatus;
 import com.Spring_chat.Web_chat.enums.MessageType;
-import com.Spring_chat.Web_chat.enums.RoleName;
 import com.Spring_chat.Web_chat.exception.AppException;
 import com.Spring_chat.Web_chat.exception.ErrorCode;
 import com.Spring_chat.Web_chat.mappers.ConversationMapper;
-import com.Spring_chat.Web_chat.repository.*;
+import com.Spring_chat.Web_chat.repository.ConversationParticipantRepository;
+import com.Spring_chat.Web_chat.repository.ConversationRepository;
+import com.Spring_chat.Web_chat.repository.MessageRepository;
+import com.Spring_chat.Web_chat.repository.UserRepository;
 import com.Spring_chat.Web_chat.service.common.CurrentUserProvider;
-import com.Spring_chat.Web_chat.service.common.ProjectionTimestampConverter;
-import com.Spring_chat.Web_chat.service.message.MessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,8 +34,7 @@ public class ConversationServiceImpl implements ConversationService {
     private final CurrentUserProvider currentUserProvider;
     private final ConversationParticipantRepository conversationParticipantRepository;
     private final ConversationMapper conversationMapper;
-    private final FriendshipRepository friendshipRepository;
-    private final MessageService messageService;
+    private final MessageRepository messageRepository;
 
     @Override
     @Transactional
@@ -140,24 +134,13 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     @Override
-    public ApiResponse<ConversationListDTO> getUserConversation(Pageable pageable, String cursorStr) {
+    public ApiResponse<ConversationListDTO> getUserConversation(Pageable pageable, String cursor) {
         User currentUser = currentUserProvider.findCurrentUserOrThrow();
 
         int limit = Math.min(pageable.getPageSize(), 50);
-        Instant onlineThreshold = Instant.now().minusSeconds(5 * 60L);
 
-        OffsetDateTime cursor = null;
-        if (cursorStr != null && !cursorStr.isBlank()) {
-            try {
-                cursor = OffsetDateTime.parse(cursorStr);
-            } catch (Exception e) {
-                log.warn("Invalid cursor format: {}", cursorStr);
-            }
-        }
-
-        List<ConversationRowProjection> rows = (cursor == null)
-                ? conversationParticipantRepository.findUserConversationsFirstPage(currentUser.getId(), limit + 1, onlineThreshold)
-                : conversationParticipantRepository.findUserConversations(currentUser.getId(), cursor, limit + 1, onlineThreshold);
+        List<ConversationRowProjection> rows = conversationParticipantRepository
+                .findUserConversations(currentUser.getId(), cursor, limit + 1);
 
         boolean hasMore = rows.size() > limit;
         List<ConversationRowProjection> page = hasMore ? rows.subList(0, limit) : rows;
@@ -169,10 +152,9 @@ public class ConversationServiceImpl implements ConversationService {
         Instant nextCursor = null;
         if (hasMore && !page.isEmpty()) {
             ConversationRowProjection last = page.get(page.size() - 1);
-            Instant lastMessageCreatedAt = ProjectionTimestampConverter.toInstant(last.getLastMessageCreatedAt());
-            nextCursor = lastMessageCreatedAt != null
-                    ? lastMessageCreatedAt
-                    : ProjectionTimestampConverter.toInstant(last.getConversationCreatedAt());
+            nextCursor = last.getLastMessageCreatedAt() != null
+                    ? last.getLastMessageCreatedAt()
+                    : last.getConversationCreatedAt();
         }
 
         ConversationListDTO result = new ConversationListDTO();
@@ -190,7 +172,7 @@ public class ConversationServiceImpl implements ConversationService {
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Conversation not found"));
 
-        if (!conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId())) {
+        if (!conversationParticipantRepository.existsByConversation_IdAndUser_Id(conversationId, currentUser.getId())) {
             throw new AppException(ErrorCode.FORBIDDEN, "You are not a participant of this conversation");
         }
 
@@ -201,227 +183,13 @@ public class ConversationServiceImpl implements ConversationService {
         return ApiResponse.ok("OK", detailDTO);
     }
 
-    /**
-     * Tạo/lấy PRIVATE conversation giữa hai user sau khi accept friend.
-     * REQUIRES_NEW: chạy trong transaction riêng để không làm rollback-only
-     * transaction của acceptFriend khi có lỗi (ví dụ conversation đã tồn tại,
-     * user không tồn tại, hoặc lỗi concurrent).
-     */
-    @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void autoCreatePrivateConversation(Long userId1, Long userId2) {
-        User user1 = userRepository.findById(userId1)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "User không tồn tại: " + userId1));
-        User user2 = userRepository.findById(userId2)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "User không tồn tại: " + userId2));
-
-        Conversation existing = conversationRepository
-                .findPrivateBetween(ConversationType.PRIVATE, userId1, userId2)
-                .orElse(null);
-        if (existing != null) {
-            log.debug("Private conversation between {} and {} already exists (id={})", userId1, userId2, existing.getId());
-            return;
-        }
-
-        Conversation conversation = Conversation.builder()
-                .type(ConversationType.PRIVATE)
-                .build();
-        conversationRepository.save(conversation);
-
-        List<ConversationParticipant> participants = List.of(
-                ConversationParticipant.builder().conversation(conversation).user(user1).build(),
-                ConversationParticipant.builder().conversation(conversation).user(user2).build()
-        );
-        conversationParticipantRepository.saveAll(participants);
-        log.info("Auto-created PRIVATE conversation {} between user {} and {}", conversation.getId(), userId1, userId2);
-    }
-
-    @Override
-    public boolean isOwner(Long conversationId) {
-        if (conversationId == null) return false;
-        User currentUser = currentUserProvider.findCurrentUserOrThrow();
-        return conversationRepository.findById(conversationId)
-                .map(Conversation::getOwner)
-                .map(owner -> owner.getId().equals(currentUser.getId()))
-                .orElse(false);
-    }
-
-    @Override
-    @Transactional
-    public ApiResponse<UpdateConversationDTO> updateConversation(Long id, UpdateConversationDTO updateConversationDTO) {
-        User currentUser = currentUserProvider.findCurrentUserOrThrow();
-        Conversation conversation = conversationRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Conversation not found"));
-
-        if (conversation.getType() == ConversationType.PRIVATE) {
-            throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED, "Cuộc hội thoại PRIVATE không có tiêu đề để sửa");
-        }
-
-        assertCanManageConversation(currentUser, conversation);
-
-        if (updateConversationDTO.getTitle() != null && !updateConversationDTO.getTitle().trim().isEmpty()) {
-            conversation.setTitle(updateConversationDTO.getTitle().trim());
-        }
-        if (updateConversationDTO.getAvatarUrl() != null) {
-            conversation.setAvatarUrl(updateConversationDTO.getAvatarUrl().trim());
-        }
-
-        conversationRepository.save(conversation);
-
-        UpdateConversationDTO response = UpdateConversationDTO.builder()
-                .id(conversation.getId())
-                .title(conversation.getTitle())
-                .avatarUrl(conversation.getAvatarUrl())
-                .build();
-
-        return ApiResponse.ok("Conversation updated", response);
-    }
-
-    @Override
-    @Transactional
-    public ApiResponse<AddParticipantsResponseDTO> addUserToConversation(Long conversationId, AddParticipantsRequestDTO addParticipantsRequestDTO) {
-        User currentUser = currentUserProvider.findCurrentUserOrThrow();
-        Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy cuộc hội thoại"));
-
-        if (conversation.getType() == ConversationType.PRIVATE) {
-            throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED, "Không thể thêm thành viên vào cuộc hội thoại PRIVATE");
-        }
-
-        assertCanManageConversation(currentUser, conversation);
-
-        if (addParticipantsRequestDTO.getUserIds() == null || addParticipantsRequestDTO.getUserIds().length == 0) {
-            throw new AppException(ErrorCode.MISSING_PARAMETER, "Không có dữ liệu của người thêm vào");
-        }
-
-        Set<Long> requestedUserIds = Arrays.stream(addParticipantsRequestDTO.getUserIds())
-                .filter(Objects::nonNull)
-                .filter(id -> !id.equals(currentUser.getId()))
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-
-        Map<Long, User> userMap = new HashMap<>();
-        if (!requestedUserIds.isEmpty()) {
-            List<User> users = userRepository.findAllById(requestedUserIds);
-            userMap = users.stream().collect(Collectors.toMap(User::getId, u -> u));
-            if (userMap.size() != requestedUserIds.size()) {
-                throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Có người dùng không tồn tại");
-            }
-        }
-
-        for (Long userId : addParticipantsRequestDTO.getUserIds()) {
-            if (userId == null || userId.equals(currentUser.getId())) {
-                continue;
-            }
-            addParticipantToConversation(conversation, userMap.get(userId), currentUser);
-        }
-
-        AddParticipantsResponseDTO response = AddParticipantsResponseDTO.builder()
-                .addedUserIds(addParticipantsRequestDTO.getUserIds())
-                .build();
-
-        return ApiResponse.ok("Thêm thành công người dùng vào cuộc hội thoại", response);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public ApiResponse<Void> removeParticipantFromConversation(Long conversationId, Long userId) {
-        User currentUser = currentUserProvider.findCurrentUserOrThrow();
-        // Lock conversation row to serialize owner-transfer decisions under concurrent leave/kick requests.
-        Conversation conversation = conversationRepository.findByIdForUpdate(conversationId)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy cuộc hội thoại"));
-
-        if (conversation.getType() == ConversationType.PRIVATE) {
-            throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED, "Không thể xóa thành viên khỏi cuộc hội thoại PRIVATE");
-        }
-
-        ConversationParticipant targetParticipant = conversationParticipantRepository
-                .findByConversation_IdAndUser_Id(conversationId, userId)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Người dùng không phải thành viên của nhóm"));
-
-        if (targetParticipant.getLeftAt() != null) {
-            messageService.invalidateParticipantCache(conversationId, userId);
-            return ApiResponse.ok("User already left", null); // Idempotent: already left
-        }
-
-        boolean isSelf = currentUser.getId().equals(userId);
-        boolean isOwner = conversation.getOwner() != null && conversation.getOwner().getId().equals(currentUser.getId());
-        if (!isSelf && !isOwner && !isAdmin(currentUser)) {
-            throw new AppException(ErrorCode.FORBIDDEN, "Bạn không có quyền xóa thành viên khỏi cuộc hội thoại này");
-        }
-
-        // Thực hiện rời nhóm/kick
-        targetParticipant.setLeftAt(Instant.now());
-        conversationParticipantRepository.save(targetParticipant);
-        messageService.invalidateParticipantCache(conversationId, userId);
-
-        // Nếu chủ nhóm rời đi -> chuyển quyền owner
-        if (isSelf && isOwner) {
-            transferOwnership(conversation, userId);
-        }
-
-        return ApiResponse.ok("Participant removed", null);
-    }
-
-    private void transferOwnership(Conversation conversation, Long leavingOwnerId) {
-        // Tìm người còn lại gia nhập sớm nhất, loại trừ người đang rời đi
-        Optional<ConversationParticipant> nextOwnerParticipant = conversationParticipantRepository
-                .findFirstByConversation_IdAndUser_IdNotAndLeftAtIsNullOrderByJoinedAtAsc(conversation.getId(), leavingOwnerId);
-
-        if (nextOwnerParticipant.isPresent()) {
-            conversation.setOwner(nextOwnerParticipant.get().getUser());
-            conversationRepository.save(conversation);
-        } else {
-            conversation.setOwner(null);
-            conversation.setStatus(ConversationStatus.INACTIVE);
-            conversationRepository.save(conversation);
-        }
-    }
-
-    private void addParticipantToConversation(Conversation conversation, User participant, User currentUser) {
-        // Kiểm tra block hai chiều (chuẩn production: dùng findBetweenUsers)
-        Optional<Friendship> friendship = friendshipRepository.findBetweenUsers(currentUser.getId(), participant.getId());
-        if (friendship.isPresent() && friendship.get().getStatus() == FriendshipStatus.BLOCKED) {
-            throw new AppException(ErrorCode.CANNOT_INVITE_BLOCK, "Không thể mời do tồn tại quan hệ block giữa hai người");
-        }
-
-        ConversationParticipant conversationParticipant = conversationParticipantRepository
-                .findByConversation_IdAndUser(conversation.getId(), participant);
-
-        if (conversationParticipant == null) {
-            ConversationParticipant newParticipant = ConversationParticipant.builder()
-                    .conversation(conversation)
-                    .user(participant)
-                    .joinedAt(Instant.now())
-                    .build();
-            conversationParticipantRepository.save(newParticipant);
-        } else if (conversationParticipant.getLeftAt() != null) {
-            // Re-join if they left before
-            conversationParticipant.setLeftAt(null);
-            conversationParticipantRepository.save(conversationParticipant);
-        }
-        // If already in group (joinedAt != null && leftAt == null), do nothing (idempotent)
-    }
-
-    private void assertCanManageConversation(User currentUser, Conversation conversation) {
-        boolean isOwner = conversation.getOwner() != null
-                && conversation.getOwner().getId().equals(currentUser.getId());
-        if (!isOwner && !isAdmin(currentUser)) {
-            throw new AppException(ErrorCode.FORBIDDEN, "Bạn không có quyền quản lý cuộc hội thoại này");
-        }
-    }
-
-    private boolean isAdmin(User user) {
-        return user.getRoles() != null && user.getRoles().stream()
-                .anyMatch(role -> role.getName() == RoleName.ROLE_ADMIN);
-    }
-
     private ConversationSummaryDTO toSummaryDTO(ConversationRowProjection row) {
         ConversationSummaryDTO dto = new ConversationSummaryDTO();
         dto.setId(row.getId());
         dto.setType(ConversationType.valueOf(row.getType()));
         dto.setTitle(row.getTitle());
         dto.setAvatarUrl(row.getAvatarUrl());
-        dto.setCreatedAt(ProjectionTimestampConverter.toInstant(row.getConversationCreatedAt()));
+        dto.setCreatedAt(row.getConversationCreatedAt());
 
         if (row.getLastMessageId() != null) {
             LastMessageDTO lastMsg = new LastMessageDTO();
@@ -431,7 +199,7 @@ public class ConversationServiceImpl implements ConversationService {
                     ? MessageType.valueOf(row.getLastMessageType()) : null);
             lastMsg.setSenderId(row.getLastMessageSenderId());
             lastMsg.setSenderUsername(row.getSenderUsername());
-            lastMsg.setCreatedAt(ProjectionTimestampConverter.toInstant(row.getLastMessageCreatedAt()));
+            lastMsg.setCreatedAt(row.getLastMessageCreatedAt());
             lastMsg.setDeleted(Boolean.TRUE.equals(row.getLastMessageIsDeleted()));
             dto.setLastMessage(lastMsg);
         }
@@ -449,5 +217,4 @@ public class ConversationServiceImpl implements ConversationService {
 
         return dto;
     }
-
 }

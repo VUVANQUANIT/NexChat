@@ -33,8 +33,3 @@ build/
 .vscode/
 ### Environment Variables ###
 .env
-
-### Logs ###
-logs/
-*.log
-*.log.gz

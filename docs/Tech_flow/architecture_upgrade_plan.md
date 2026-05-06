@@ -28,23 +28,19 @@ Spring_Chat (Monolith)
 ## 1. 🔴 Redis — Nên làm TRƯỚC TIÊN (Dễ nhất, lợi ích rõ ràng nhất)
 
 ### Tại sao phù hợp?
-
 Dự án chat có rất nhiều dữ liệu cần đọc nhanh, không cần query DB mỗi lần.
 
 ### Use Cases cụ thể trong dự án:
 
-
-| Tính năng              | Hiện tại             | Sau khi có Redis                     |
-| ---------------------- | -------------------- | ------------------------------------ |
+| Tính năng | Hiện tại | Sau khi có Redis |
+|-----------|----------|-----------------|
 | JWT Blacklist (logout) | Không có hoặc lưu DB | Lưu vào Redis với TTL = token expiry |
-| Online/Offline status  | Không theo dõi       | `SET user:{id}:online 1 EX 30`       |
-| Rate limiting chat     | Không có             | `INCR user:{id}:msg:count EX 60`     |
-| Cache danh sách bạn bè | Query DB mỗi lần     | Cache 5 phút trong Redis             |
-| Session WebSocket      | In-memory            | Redis pub/sub để scale               |
-
+| Online/Offline status | Không theo dõi | `SET user:{id}:online 1 EX 30` |
+| Rate limiting chat | Không có | `INCR user:{id}:msg:count EX 60` |
+| Cache danh sách bạn bè | Query DB mỗi lần | Cache 5 phút trong Redis |
+| Session WebSocket | In-memory | Redis pub/sub để scale |
 
 ### Code ví dụ — Online Status Service:
-
 ```java
 @Service
 @RequiredArgsConstructor
@@ -68,7 +64,6 @@ public class UserPresenceService {
 ```
 
 ### Code ví dụ — JWT Blacklist (sau logout):
-
 ```java
 @Service
 public class TokenBlacklistService {
@@ -88,7 +83,6 @@ public class TokenBlacklistService {
 ```
 
 ### Thêm dependency:
-
 ```xml
 <dependency>
     <groupId>org.springframework.boot</groupId>
@@ -101,19 +95,16 @@ public class TokenBlacklistService {
 ## 2. 🟠 RabbitMQ — Nên làm THỨ HAI (Message Queue cho Notification)
 
 ### Tại sao phù hợp?
-
 Khi gửi tin nhắn, bạn cần notify cho người nhận. Nếu người nhận offline, cần queue lại để gửi sau (push notification, email, v.v.)
 
 ### Use Cases cụ thể:
 
-
-| Luồng               | Không có RabbitMQ     | Có RabbitMQ                       |
-| ------------------- | --------------------- | --------------------------------- |
-| Gửi tin nhắn        | Send → Save DB → Done | Send → Save DB → Publish event    |
-| Notify offline user | Mất notify            | Consumer lưu pending notification |
-| Email notification  | Gọi thẳng (block)     | Async qua queue                   |
-| Friend request      | Save DB → Done        | Save → Publish → Email async      |
-
+| Luồng | Không có RabbitMQ | Có RabbitMQ |
+|-------|------------------|-------------|
+| Gửi tin nhắn | Send → Save DB → Done | Send → Save DB → Publish event |
+| Notify offline user | Mất notify | Consumer lưu pending notification |
+| Email notification | Gọi thẳng (block) | Async qua queue |
+| Friend request | Save DB → Done | Save → Publish → Email async |
 
 ### Architecture với RabbitMQ:
 
@@ -130,7 +121,6 @@ Khi gửi tin nhắn, bạn cần notify cho người nhận. Nếu người nh�
 ```
 
 ### Code ví dụ:
-
 ```java
 // Publisher
 @Service
@@ -171,7 +161,6 @@ public class NotificationConsumer {
 ```
 
 ### Thêm dependency:
-
 ```xml
 <dependency>
     <groupId>org.springframework.boot</groupId>
@@ -185,25 +174,21 @@ public class NotificationConsumer {
 
 ### Kafka vs RabbitMQ — Khi nào dùng cái nào?
 
-
-|                | RabbitMQ                 | Kafka                      |
-| -------------- | ------------------------ | -------------------------- |
-| **Dùng cho**   | Task queue, notification | Event streaming, audit log |
-| **Retention**  | Xóa sau khi consumed     | Lưu lâu dài (replay được)  |
-| **Throughput** | 20k msg/s                | 1M+ msg/s                  |
-| **Phù hợp**    | Notification, email      | Analytics, audit trail     |
-
+| | RabbitMQ | Kafka |
+|--|----------|-------|
+| **Dùng cho** | Task queue, notification | Event streaming, audit log |
+| **Retention** | Xóa sau khi consumed | Lưu lâu dài (replay được) |
+| **Throughput** | 20k msg/s | 1M+ msg/s |
+| **Phù hợp** | Notification, email | Analytics, audit trail |
 
 ### Use Cases trong dự án chat:
 
-
-| Feature                  | Ứng dụng Kafka                                      |
-| ------------------------ | --------------------------------------------------- |
-| **Audit log**            | Mọi tin nhắn gửi đều stream vào topic `chat-events` |
-| **Analytics**            | Đếm tin nhắn theo giờ, người dùng active nhất       |
-| **Notification service** | Service riêng consume event và gửi push/email       |
-| **Search indexing**      | Consumer index tin nhắn vào Elasticsearch           |
-
+| Feature | Ứng dụng Kafka |
+|---------|---------------|
+| **Audit log** | Mọi tin nhắn gửi đều stream vào topic `chat-events` |
+| **Analytics** | Đếm tin nhắn theo giờ, người dùng active nhất |
+| **Notification service** | Service riêng consume event và gửi push/email |
+| **Search indexing** | Consumer index tin nhắn vào Elasticsearch |
 
 ### Architecture:
 
@@ -217,7 +202,6 @@ public class NotificationConsumer {
 ```
 
 ### Code ví dụ:
-
 ```java
 // Producer
 @Service
@@ -246,7 +230,6 @@ public class ChatAuditConsumer {
 ```
 
 ### Thêm dependency:
-
 ```xml
 <dependency>
     <groupId>org.springframework.kafka</groupId>
@@ -276,16 +259,14 @@ public class ChatAuditConsumer {
 
 ### Cách tách từ monolith hiện tại:
 
-
-| Service                  | Từ code hiện tại                           | Tech                            |
-| ------------------------ | ------------------------------------------ | ------------------------------- |
-| **auth-service**         | `AuthController` + JWT logic               | Spring Boot + Redis (blacklist) |
-| **user-service**         | `UserController` + User entity             | Spring Boot + PostgreSQL        |
-| **friendship-service**   | `FriendShipController` + Friendship entity | Spring Boot + PostgreSQL        |
-| **chat-service**         | Conversation + Message + WebSocket         | Spring Boot + WebSocket + Kafka |
-| **notification-service** | Mới hoàn toàn                              | Spring Boot + RabbitMQ          |
-| **api-gateway**          | Mới                                        | Spring Cloud Gateway            |
-
+| Service | Từ code hiện tại | Tech |
+|---------|-----------------|------|
+| **auth-service** | `AuthController` + JWT logic | Spring Boot + Redis (blacklist) |
+| **user-service** | `UserController` + User entity | Spring Boot + PostgreSQL |
+| **friendship-service** | `FriendShipController` + Friendship entity | Spring Boot + PostgreSQL |
+| **chat-service** | Conversation + Message + WebSocket | Spring Boot + WebSocket + Kafka |
+| **notification-service** | Mới hoàn toàn | Spring Boot + RabbitMQ |
+| **api-gateway** | Mới | Spring Cloud Gateway |
 
 ### Giao tiếp giữa services:
 
@@ -363,14 +344,11 @@ services:
 
 ## 🎯 Kết luận
 
-
-| Công nghệ         | Độ phù hợp | Độ khó        | Ưu tiên      |
-| ----------------- | ---------- | ------------- | ------------ |
-| **Redis**         | ⭐⭐⭐⭐⭐      | Dễ            | **Làm ngay** |
-| **RabbitMQ**      | ⭐⭐⭐⭐       | Trung bình    | Sau Redis    |
-| **Kafka**         | ⭐⭐⭐        | Khó hơn       | Sau RabbitMQ |
-| **Microservices** | ⭐⭐⭐⭐       | Phức tạp nhất | Cuối cùng    |
-
+| Công nghệ | Độ phù hợp | Độ khó | Ưu tiên |
+|-----------|-----------|--------|---------|
+| **Redis** | ⭐⭐⭐⭐⭐ | Dễ | **Làm ngay** |
+| **RabbitMQ** | ⭐⭐⭐⭐ | Trung bình | Sau Redis |
+| **Kafka** | ⭐⭐⭐ | Khó hơn | Sau RabbitMQ |
+| **Microservices** | ⭐⭐⭐⭐ | Phức tạp nhất | Cuối cùng |
 
 > 💡 **Gợi ý**: Bắt đầu với Redis vì lợi ích rõ ràng ngay (online status + JWT blacklist), code đơn giản, và là nền tảng cho các tech sau.
-
