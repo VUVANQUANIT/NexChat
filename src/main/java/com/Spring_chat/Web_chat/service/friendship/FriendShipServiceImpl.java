@@ -115,8 +115,8 @@ public class FriendShipServiceImpl implements FriendShipService {
             // Dùng REQUIRES_NEW để tránh transaction của acceptFriend bị rollback-only
             // nếu tạo conversation thất bại (ví dụ duplicate concurrent, user không tồn tại).
             conversationService.autoCreatePrivateConversation(u1.getId(), u2.getId());
-        } catch (Exception e) {
-            log.error("Failed to auto-create conversation between {} and {}: {}", u1.getId(), u2.getId(), e.getMessage());
+        } catch (RuntimeException e) {
+            log.error("Failed to auto-create conversation between {} and {}", u1.getId(), u2.getId(), e);
         }
     }
 

@@ -2,6 +2,7 @@ package com.Spring_chat.Web_chat.service.friendship;
 
 import com.Spring_chat.Web_chat.enums.FriendshipStatus;
 import com.Spring_chat.Web_chat.dto.ApiResponse;
+import com.Spring_chat.Web_chat.dto.friendship.AcceptFriendResponseDTO;
 import com.Spring_chat.Web_chat.dto.friendship.RejectFriendResponseDTO;
 import com.Spring_chat.Web_chat.entity.Friendship;
 import com.Spring_chat.Web_chat.entity.User;
@@ -9,6 +10,7 @@ import com.Spring_chat.Web_chat.exception.AppException;
 import com.Spring_chat.Web_chat.exception.ErrorCode;
 import com.Spring_chat.Web_chat.repository.FriendshipRepository;
 import com.Spring_chat.Web_chat.service.common.CurrentUserProvider;
+import com.Spring_chat.Web_chat.service.conversation.ConversationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +32,9 @@ class FriendShipServiceImplTest {
     @Mock
     private CurrentUserProvider currentUserProvider;
 
+    @Mock
+    private ConversationService conversationService;
+
     @InjectMocks
     private FriendShipServiceImpl friendShipService;
 
@@ -50,6 +55,34 @@ class FriendShipServiceImplTest {
         friendship.setRequester(requester);
         friendship.setAddressee(currentUser);
         friendship.setStatus(FriendshipStatus.PENDING);
+    }
+
+    @Test
+    void acceptFriend_Success_AutoCreatesPrivateConversation() {
+        when(currentUserProvider.findCurrentUserOrThrow()).thenReturn(currentUser);
+        when(friendshipRepository.findById(100L)).thenReturn(Optional.of(friendship));
+
+        ApiResponse<AcceptFriendResponseDTO> response = friendShipService.acceptFriend(100L);
+
+        assertEquals("Friend request accepted", response.getMessage());
+        assertEquals(FriendshipStatus.ACCEPTED, friendship.getStatus());
+        verify(friendshipRepository, times(1)).save(friendship);
+        verify(conversationService, times(1)).autoCreatePrivateConversation(requester.getId(), currentUser.getId());
+    }
+
+    @Test
+    void acceptFriend_AutoCreateConversationFails_StillReturnsAccepted() {
+        when(currentUserProvider.findCurrentUserOrThrow()).thenReturn(currentUser);
+        when(friendshipRepository.findById(100L)).thenReturn(Optional.of(friendship));
+        doThrow(new AppException(ErrorCode.INTERNAL_ERROR, "conversation failed"))
+                .when(conversationService).autoCreatePrivateConversation(requester.getId(), currentUser.getId());
+
+        ApiResponse<AcceptFriendResponseDTO> response = friendShipService.acceptFriend(100L);
+
+        assertEquals("Friend request accepted", response.getMessage());
+        assertEquals(FriendshipStatus.ACCEPTED, friendship.getStatus());
+        verify(friendshipRepository, times(1)).save(friendship);
+        verify(conversationService, times(1)).autoCreatePrivateConversation(requester.getId(), currentUser.getId());
     }
 
     @Test

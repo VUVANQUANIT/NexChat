@@ -3,6 +3,7 @@ package com.Spring_chat.Web_chat.repository;
 import com.Spring_chat.Web_chat.dto.message.MessageRowProjection;
 import com.Spring_chat.Web_chat.entity.Conversation;
 import com.Spring_chat.Web_chat.entity.Message;
+import com.Spring_chat.Web_chat.entity.MessageHidden;
 import com.Spring_chat.Web_chat.entity.User;
 import com.Spring_chat.Web_chat.enums.ConversationType;
 import com.Spring_chat.Web_chat.enums.MessageType;
@@ -111,6 +112,27 @@ class MessageRepositoryTest {
         assertThat(messages).hasSize(2);
         assertThat(messages.get(0).getId()).isEqualTo(m2.getId());
         assertThat(messages.get(1).getId()).isEqualTo(m1.getId());
+    }
+
+    @Test
+    @DisplayName("Tin nhắn bị ẩn bởi user hiện tại không xuất hiện trong message list")
+    void findLatestMessages_ShouldExcludeHiddenMessagesForCurrentUser() {
+        Instant baseTime = Instant.now().minus(1, ChronoUnit.DAYS);
+        Message visible = createMessage(baseTime.plus(1, ChronoUnit.HOURS), "Visible");
+        Message hidden = createMessage(baseTime.plus(2, ChronoUnit.HOURS), "Hidden");
+
+        entityManager.persist(MessageHidden.builder()
+                .message(hidden)
+                .user(sender)
+                .build());
+        entityManager.flush();
+        entityManager.clear();
+
+        List<MessageRowProjection> messages = messageRepository.findLatestMessages(
+                conversation.getId(), sender.getId(), 10);
+
+        assertThat(messages).extracting(MessageRowProjection::getId)
+                .containsExactly(visible.getId());
     }
 
     private Message createMessage(Instant createdAt, String content) {

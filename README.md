@@ -1,7 +1,7 @@
 # 🚀 Spring Chat - Enterprise Real-time Messaging Platform
 
 [![Java Version](https://img.shields.io/badge/Java-21-orange?style=for-the-badge&logo=openjdk)](https://openjdk.org/projects/jdk/21/)
-[![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.4+-brightgreen?style=for-the-badge&logo=springboot)](https://spring.io/projects/spring-boot)
+[![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.0.x-brightgreen?style=for-the-badge&logo=springboot)](https://spring.io/projects/spring-boot)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-blue?style=for-the-badge&logo=postgresql)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-Enabled-blue?style=for-the-badge&logo=docker)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
@@ -11,7 +11,7 @@
 ## 🌏 English Version
 
 ### 📖 Introduction
-**Spring Chat** is a high-performance, scalable real-time messaging engine built with **Java 21** and **Spring Boot 3**. Designed with a focus on security, concurrency, and modern architectural patterns, it leverages **Project Loom (Virtual Threads)** for massive scalability and a robust **RBAC + Permission** system for enterprise-grade access control.
+**Spring Chat** is a high-performance, scalable real-time messaging engine built with **Java 21** and **Spring Boot 4**. Designed with a focus on security, concurrency, and modern architectural patterns, it leverages **Project Loom (Virtual Threads)** for massive scalability and a robust **RBAC + Permission** system for enterprise-grade access control.
 
 ### ✨ Key Features
 - ⚡ **Real-time Performance**: Optimized for thousands of concurrent connections using Java 21 Virtual Threads.
@@ -23,7 +23,7 @@
 
 ### 🛠️ Tech Stack
 - **Language**: Java 21 (LTS)
-- **Framework**: Spring Boot 3.4+, Spring Security, Spring Data JPA
+- **Framework**: Spring Boot 4.0.x, Spring Security, Spring Data JPA
 - **Database**: PostgreSQL 15+
 - **Messaging/Queue**: RabbitMQ (for Async Mail/Tasks)
 - **Documentation**: Swagger/OpenAPI (detailed specification)
@@ -34,7 +34,7 @@
 ## 🇻🇳 Phiên bản Tiếng Việt
 
 ### 📖 Giới thiệu
-**Spring Chat** là một nền tảng backend cho hệ thống nhắn tin thời gian thực hiệu suất cao, được xây dựng trên nền tảng **Java 21** và **Spring Boot 3**. Dự án tập trung vào khả năng mở rộng, bảo mật tối đa và áp dụng các pattern kiến trúc hiện đại, sử dụng **Project Loom (Virtual Threads)** để xử lý hàng ngàn kết nối đồng thời và hệ thống phân quyền **RBAC + Permission** chi tiết.
+**Spring Chat** là một nền tảng backend cho hệ thống nhắn tin thời gian thực hiệu suất cao, được xây dựng trên nền tảng **Java 21** và **Spring Boot 4**. Dự án tập trung vào khả năng mở rộng, bảo mật tối đa và áp dụng các pattern kiến trúc hiện đại, sử dụng **Project Loom (Virtual Threads)** để xử lý hàng ngàn kết nối đồng thời và hệ thống phân quyền **RBAC + Permission** chi tiết.
 
 ### ✨ Tính năng nổi bật
 - ⚡ **Hiệu suất vượt trội**: Tối ưu hóa cho hàng ngàn kết nối đồng thời nhờ Virtual Threads của Java 21.
@@ -46,7 +46,7 @@
 
 ### 🛠️ Công nghệ sử dụng
 - **Ngôn ngữ**: Java 21 (LTS)
-- **Framework**: Spring Boot 3.4+, Spring Security, Spring Data JPA
+- **Framework**: Spring Boot 4.0.x, Spring Security, Spring Data JPA
 - **Cơ sở dữ liệu**: PostgreSQL 15+
 - **Messaging**: RabbitMQ (xử lý Mail/Task bất đồng bộ)
 - **Tài liệu API**: Swagger/OpenAPI
@@ -76,8 +76,11 @@ JWT_REFRESH_EXPIRATION=604800000
 
 # Server
 SERVER_PORT=8080
-JPA_DDL_AUTO=update
+JPA_DDL_AUTO=validate
 ```
+
+Database changes are managed through SQL migrations in `src/main/resources/schema/`.
+Avoid `JPA_DDL_AUTO=update` for shared environments because it can hide schema drift.
 
 ### 3. Running with Docker / Chạy bằng Docker
 ```bash
