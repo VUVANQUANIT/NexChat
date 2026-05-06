@@ -35,6 +35,7 @@ import com.Spring_chat.Web_chat.event.MessageEditedEvent;
 import com.Spring_chat.Web_chat.event.MessageCreatedEvent;
 import com.Spring_chat.Web_chat.event.MessageReadEvent;
 import com.Spring_chat.Web_chat.service.common.CurrentUserProvider;
+import com.Spring_chat.Web_chat.service.common.ProjectionTimestampConverter;
 import com.Spring_chat.Web_chat.service.message.delete.MessageDeletionService;
 import com.Spring_chat.Web_chat.service.message.edit.MessageEditValidator;
 import lombok.RequiredArgsConstructor;
@@ -51,7 +52,6 @@ import java.util.concurrent.TimeUnit;
 import java.time.Duration;
 import java.net.URI;
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -590,31 +590,12 @@ public class MessageServiceImpl implements MessageService {
         dto.setType(row.getType());
         dto.setReplyTo(row.getReplyToId());
         dto.setEdited(row.getIsEdited() != null && row.getIsEdited());
-        dto.setEditedAt(toInstant(row.getEditedAt()));
-        dto.setCreatedAt(toInstant(row.getCreatedAt()));
+        dto.setEditedAt(ProjectionTimestampConverter.toInstant(row.getEditedAt()));
+        dto.setCreatedAt(ProjectionTimestampConverter.toInstant(row.getCreatedAt()));
         dto.setMyStatus(row.getMyStatus());
         dto.setDeliveryStatuses(deliveryStatuses);
         
         return dto;
-    }
-
-    private Instant toInstant(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Instant instant) {
-            return instant;
-        }
-        if (value instanceof OffsetDateTime offsetDateTime) {
-            return offsetDateTime.toInstant();
-        }
-        if (value instanceof java.sql.Timestamp timestamp) {
-            return timestamp.toInstant();
-        }
-        if (value instanceof java.util.Date date) {
-            return date.toInstant();
-        }
-        throw new AppException(ErrorCode.INTERNAL_ERROR, "Không thể chuyển đổi kiểu timestamp từ native query");
     }
 
 }

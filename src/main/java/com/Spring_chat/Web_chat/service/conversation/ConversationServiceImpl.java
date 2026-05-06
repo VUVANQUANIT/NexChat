@@ -10,11 +10,13 @@ import com.Spring_chat.Web_chat.enums.ConversationStatus;
 import com.Spring_chat.Web_chat.enums.ConversationType;
 import com.Spring_chat.Web_chat.enums.FriendshipStatus;
 import com.Spring_chat.Web_chat.enums.MessageType;
+import com.Spring_chat.Web_chat.enums.RoleName;
 import com.Spring_chat.Web_chat.exception.AppException;
 import com.Spring_chat.Web_chat.exception.ErrorCode;
 import com.Spring_chat.Web_chat.mappers.ConversationMapper;
 import com.Spring_chat.Web_chat.repository.*;
 import com.Spring_chat.Web_chat.service.common.CurrentUserProvider;
+import com.Spring_chat.Web_chat.service.common.ProjectionTimestampConverter;
 import com.Spring_chat.Web_chat.service.message.MessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -167,10 +169,10 @@ public class ConversationServiceImpl implements ConversationService {
         Instant nextCursor = null;
         if (hasMore && !page.isEmpty()) {
             ConversationRowProjection last = page.get(page.size() - 1);
-            Instant lastMessageCreatedAt = toInstant(last.getLastMessageCreatedAt());
+            Instant lastMessageCreatedAt = ProjectionTimestampConverter.toInstant(last.getLastMessageCreatedAt());
             nextCursor = lastMessageCreatedAt != null
                     ? lastMessageCreatedAt
-                    : toInstant(last.getConversationCreatedAt());
+                    : ProjectionTimestampConverter.toInstant(last.getConversationCreatedAt());
         }
 
         ConversationListDTO result = new ConversationListDTO();
@@ -247,6 +249,7 @@ public class ConversationServiceImpl implements ConversationService {
     @Override
     @Transactional
     public ApiResponse<UpdateConversationDTO> updateConversation(Long id, UpdateConversationDTO updateConversationDTO) {
+        User currentUser = currentUserProvider.findCurrentUserOrThrow();
         Conversation conversation = conversationRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Conversation not found"));
 
@@ -254,7 +257,7 @@ public class ConversationServiceImpl implements ConversationService {
             throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED, "Cuộc hội thoại PRIVATE không có tiêu đề để sửa");
         }
 
-        // Quyền admin/owner đã được check ở Controller layer bằng @PreAuthorize
+        assertCanManageConversation(currentUser, conversation);
 
         if (updateConversationDTO.getTitle() != null && !updateConversationDTO.getTitle().trim().isEmpty()) {
             conversation.setTitle(updateConversationDTO.getTitle().trim());
@@ -285,7 +288,7 @@ public class ConversationServiceImpl implements ConversationService {
             throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED, "Không thể thêm thành viên vào cuộc hội thoại PRIVATE");
         }
 
-        // Quyền owner/admin đã được check ở Controller layer bằng @PreAuthorize
+        assertCanManageConversation(currentUser, conversation);
 
         if (addParticipantsRequestDTO.getUserIds() == null || addParticipantsRequestDTO.getUserIds().length == 0) {
             throw new AppException(ErrorCode.MISSING_PARAMETER, "Không có dữ liệu của người thêm vào");
@@ -340,10 +343,11 @@ public class ConversationServiceImpl implements ConversationService {
             return ApiResponse.ok("User already left", null); // Idempotent: already left
         }
 
-        // Quyền kick/leave đã được check ở Controller layer bằng @PreAuthorize
-
         boolean isSelf = currentUser.getId().equals(userId);
         boolean isOwner = conversation.getOwner() != null && conversation.getOwner().getId().equals(currentUser.getId());
+        if (!isSelf && !isOwner && !isAdmin(currentUser)) {
+            throw new AppException(ErrorCode.FORBIDDEN, "Bạn không có quyền xóa thành viên khỏi cuộc hội thoại này");
+        }
 
         // Thực hiện rời nhóm/kick
         targetParticipant.setLeftAt(Instant.now());
@@ -398,13 +402,26 @@ public class ConversationServiceImpl implements ConversationService {
         // If already in group (joinedAt != null && leftAt == null), do nothing (idempotent)
     }
 
+    private void assertCanManageConversation(User currentUser, Conversation conversation) {
+        boolean isOwner = conversation.getOwner() != null
+                && conversation.getOwner().getId().equals(currentUser.getId());
+        if (!isOwner && !isAdmin(currentUser)) {
+            throw new AppException(ErrorCode.FORBIDDEN, "Bạn không có quyền quản lý cuộc hội thoại này");
+        }
+    }
+
+    private boolean isAdmin(User user) {
+        return user.getRoles() != null && user.getRoles().stream()
+                .anyMatch(role -> role.getName() == RoleName.ROLE_ADMIN);
+    }
+
     private ConversationSummaryDTO toSummaryDTO(ConversationRowProjection row) {
         ConversationSummaryDTO dto = new ConversationSummaryDTO();
         dto.setId(row.getId());
         dto.setType(ConversationType.valueOf(row.getType()));
         dto.setTitle(row.getTitle());
         dto.setAvatarUrl(row.getAvatarUrl());
-        dto.setCreatedAt(toInstant(row.getConversationCreatedAt()));
+        dto.setCreatedAt(ProjectionTimestampConverter.toInstant(row.getConversationCreatedAt()));
 
         if (row.getLastMessageId() != null) {
             LastMessageDTO lastMsg = new LastMessageDTO();
@@ -414,7 +431,7 @@ public class ConversationServiceImpl implements ConversationService {
                     ? MessageType.valueOf(row.getLastMessageType()) : null);
             lastMsg.setSenderId(row.getLastMessageSenderId());
             lastMsg.setSenderUsername(row.getSenderUsername());
-            lastMsg.setCreatedAt(toInstant(row.getLastMessageCreatedAt()));
+            lastMsg.setCreatedAt(ProjectionTimestampConverter.toInstant(row.getLastMessageCreatedAt()));
             lastMsg.setDeleted(Boolean.TRUE.equals(row.getLastMessageIsDeleted()));
             dto.setLastMessage(lastMsg);
         }
@@ -433,22 +450,4 @@ public class ConversationServiceImpl implements ConversationService {
         return dto;
     }
 
-    private Instant toInstant(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Instant instant) {
-            return instant;
-        }
-        if (value instanceof OffsetDateTime offsetDateTime) {
-            return offsetDateTime.toInstant();
-        }
-        if (value instanceof java.sql.Timestamp timestamp) {
-            return timestamp.toInstant();
-        }
-        if (value instanceof java.util.Date date) {
-            return date.toInstant();
-        }
-        throw new AppException(ErrorCode.INTERNAL_ERROR, "Không thể chuyển đổi kiểu timestamp từ native query");
-    }
 }

@@ -4,10 +4,13 @@ import com.Spring_chat.Web_chat.dto.ApiResponse;
 import com.Spring_chat.Web_chat.dto.conversations.ConversationDetailDTO;
 import com.Spring_chat.Web_chat.dto.conversations.CreateConversationsDTO;
 import com.Spring_chat.Web_chat.dto.conversations.CreateConversationsResponseDTO;
+import com.Spring_chat.Web_chat.dto.conversations.UpdateConversationDTO;
 import com.Spring_chat.Web_chat.entity.Conversation;
 import com.Spring_chat.Web_chat.entity.ConversationParticipant;
+import com.Spring_chat.Web_chat.entity.Role;
 import com.Spring_chat.Web_chat.entity.User;
 import com.Spring_chat.Web_chat.enums.ConversationType;
+import com.Spring_chat.Web_chat.enums.RoleName;
 import com.Spring_chat.Web_chat.exception.AppException;
 import com.Spring_chat.Web_chat.exception.ErrorCode;
 import com.Spring_chat.Web_chat.mappers.ConversationMapper;
@@ -31,6 +34,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -364,7 +368,58 @@ class ConversationServiceImplTest {
     @Nested
     @DisplayName("updateConversation")
     class UpdateConversation {
-        // ... (existing tests)
+        @Test
+        @DisplayName("không phải owner/admin -> FORBIDDEN khi gọi service trực tiếp")
+        void nonOwnerShouldNotUpdateConversation() {
+            setCurrentUser(2L, "bob");
+            User bob = User.builder().id(2L).username("bob").build();
+            User alice = User.builder().id(1L).username("alice").build();
+            Conversation conversation = Conversation.builder()
+                    .id(5L)
+                    .type(ConversationType.GROUP)
+                    .owner(alice)
+                    .build();
+            UpdateConversationDTO request = UpdateConversationDTO.builder()
+                    .title("New title")
+                    .build();
+
+            given(userRepository.findById(2L)).willReturn(Optional.of(bob));
+            given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
+
+            assertThatThrownBy(() -> conversationService.updateConversation(5L, request))
+                    .isInstanceOf(AppException.class)
+                    .extracting(e -> ((AppException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+
+            then(conversationRepository).should(never()).save(any());
+        }
+
+        @Test
+        @DisplayName("admin được phép update conversation dù không phải owner")
+        void adminShouldUpdateConversation() {
+            Role adminRole = Role.builder().name(RoleName.ROLE_ADMIN).build();
+            User admin = User.builder().id(3L).username("admin").roles(Set.of(adminRole)).build();
+            User alice = User.builder().id(1L).username("alice").build();
+            setCurrentUser(3L, "admin");
+            Conversation conversation = Conversation.builder()
+                    .id(5L)
+                    .type(ConversationType.GROUP)
+                    .owner(alice)
+                    .title("Old")
+                    .build();
+            UpdateConversationDTO request = UpdateConversationDTO.builder()
+                    .title("  New title  ")
+                    .build();
+
+            given(userRepository.findById(3L)).willReturn(Optional.of(admin));
+            given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
+
+            ApiResponse<UpdateConversationDTO> response = conversationService.updateConversation(5L, request);
+
+            assertThat(response.isSuccess()).isTrue();
+            assertThat(conversation.getTitle()).isEqualTo("New title");
+            then(conversationRepository).should().save(conversation);
+        }
     }
 
     @Nested
@@ -429,6 +484,33 @@ class ConversationServiceImplTest {
                     .isInstanceOf(AppException.class)
                     .extracting(e -> ((AppException) e).getErrorCode())
                     .isEqualTo(ErrorCode.CANNOT_INVITE_BLOCK);
+        }
+
+        @Test
+        @DisplayName("không phải owner/admin -> FORBIDDEN khi thêm thành viên qua service trực tiếp")
+        void nonOwnerShouldNotAddParticipant() {
+            setCurrentUser(2L, "bob");
+            User alice = User.builder().id(1L).username("alice").build();
+            User bob = User.builder().id(2L).username("bob").build();
+            Conversation conversation = Conversation.builder()
+                    .id(5L)
+                    .type(ConversationType.GROUP)
+                    .owner(alice)
+                    .build();
+
+            com.Spring_chat.Web_chat.dto.conversations.AddParticipantsRequestDTO request = new com.Spring_chat.Web_chat.dto.conversations.AddParticipantsRequestDTO();
+            request.setUserIds(new Long[]{3L});
+
+            given(userRepository.findById(2L)).willReturn(Optional.of(bob));
+            given(conversationRepository.findById(5L)).willReturn(Optional.of(conversation));
+
+            assertThatThrownBy(() -> conversationService.addUserToConversation(5L, request))
+                    .isInstanceOf(AppException.class)
+                    .extracting(e -> ((AppException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+
+            then(userRepository).should(never()).findAllById(anyIterable());
+            then(conversationParticipantRepository).should(never()).save(any());
         }
 
         @Test
@@ -514,6 +596,36 @@ class ConversationServiceImplTest {
 
             assertThat(response.isSuccess()).isTrue();
             assertThat(participant.getLeftAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("không phải owner/admin thì không được kick thành viên khác khi gọi service trực tiếp")
+        void nonOwnerShouldNotKickAnotherMember() {
+            setCurrentUser(3L, "carol");
+            User alice = User.builder().id(1L).username("alice").build();
+            User bob = User.builder().id(2L).username("bob").build();
+            User carol = User.builder().id(3L).username("carol").build();
+            Conversation conversation = Conversation.builder()
+                    .id(5L)
+                    .type(ConversationType.GROUP)
+                    .owner(alice)
+                    .build();
+
+            ConversationParticipant participant = ConversationParticipant.builder()
+                    .id(100L).conversation(conversation).user(bob).build();
+
+            given(userRepository.findById(3L)).willReturn(Optional.of(carol));
+            given(conversationRepository.findByIdForUpdate(5L)).willReturn(Optional.of(conversation));
+            given(conversationParticipantRepository.findByConversation_IdAndUser_Id(5L, 2L))
+                    .willReturn(Optional.of(participant));
+
+            assertThatThrownBy(() -> conversationService.removeParticipantFromConversation(5L, 2L))
+                    .isInstanceOf(AppException.class)
+                    .extracting(e -> ((AppException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+
+            assertThat(participant.getLeftAt()).isNull();
+            then(conversationParticipantRepository).should(never()).save(any());
         }
 
         @Test
