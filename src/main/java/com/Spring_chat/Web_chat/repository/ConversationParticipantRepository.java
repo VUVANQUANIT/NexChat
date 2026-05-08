@@ -3,7 +3,9 @@ package com.Spring_chat.Web_chat.repository;
 import com.Spring_chat.Web_chat.dto.conversations.ConversationRowProjection;
 import com.Spring_chat.Web_chat.entity.ConversationParticipant;
 import com.Spring_chat.Web_chat.entity.User;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -174,6 +176,19 @@ public interface ConversationParticipantRepository extends JpaRepository<Convers
     ConversationParticipant findByConversation_IdAndUser(Long conversationId, User user);
     java.util.Optional<ConversationParticipant> findByConversation_IdAndUser_Id(Long conversationId, Long userId);
     java.util.Optional<ConversationParticipant> findByConversation_IdAndUser_IdAndLeftAtIsNull(Long conversationId, Long userId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT cp
+            FROM ConversationParticipant cp
+            WHERE cp.conversation.id = :conversationId
+              AND cp.user.id = :userId
+              AND cp.leftAt IS NULL
+            """)
+    java.util.Optional<ConversationParticipant> findActiveByConversationIdAndUserIdForUpdate(
+            @Param("conversationId") Long conversationId,
+            @Param("userId") Long userId
+    );
 
     java.util.Optional<ConversationParticipant> findFirstByConversation_IdAndLeftAtIsNullOrderByJoinedAtAsc(Long conversationId);
 

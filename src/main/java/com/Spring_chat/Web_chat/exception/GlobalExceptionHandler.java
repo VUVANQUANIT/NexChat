@@ -14,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.List;
@@ -50,6 +51,13 @@ public class GlobalExceptionHandler {
             MissingServletRequestParameterException ex, HttpServletRequest req) {
         String detail = "Thiếu tham số: " + ex.getParameterName();
         return ApiErrorBuilder.toResponseEntity(ErrorCode.MISSING_PARAMETER, detail, req.getRequestURI(), null);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiErrorResponse> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex, HttpServletRequest req) {
+        String detail = "Tham số không hợp lệ: " + ex.getName();
+        return ApiErrorBuilder.toResponseEntity(ErrorCode.VALIDATION_FAILED, detail, req.getRequestURI(), null);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)

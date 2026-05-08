@@ -50,6 +50,29 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
             @Param("limit") int limit
     );
 
+    @Query(value = """
+        SELECT
+            m.id, m.conversation_id as conversationId, m.content, m.type,
+            m.reply_to_id as replyToId, m.is_deleted as isDeleted,
+            m.is_edited as isEdited, m.edited_at as editedAt, m.created_at as createdAt,
+            u.id as senderId, u.username as senderUsername, u.avatar_url as senderAvatar,
+            ms.status as myStatus
+        FROM messages m
+        INNER JOIN users u ON m.sender_id = u.id
+        LEFT JOIN message_statuses ms ON ms.message_id = m.id AND ms.user_id = :userId
+        WHERE m.conversation_id = :convId
+          AND m.created_at <= :leftAt
+          AND NOT EXISTS (SELECT 1 FROM message_hidden mh WHERE mh.message_id = m.id AND mh.user_id = :userId)
+        ORDER BY m.created_at DESC, m.id DESC
+        LIMIT :limit
+        """, nativeQuery = true)
+    List<MessageRowProjection> findLatestMessagesBeforeLeftAt(
+            @Param("convId") Long convId,
+            @Param("userId") Long userId,
+            @Param("leftAt") Instant leftAt,
+            @Param("limit") int limit
+    );
+
     /**
      * Cursor page — trả tin nhắn cũ hơn cursor (beforeCreatedAt + beforeId).
      * Cả hai tham số đều NOT NULL (được validate ở service trước khi gọi).
@@ -81,12 +104,54 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
             @Param("limit") int limit
     );
 
+    @Query(value = """
+        SELECT
+            m.id, m.conversation_id as conversationId, m.content, m.type,
+            m.reply_to_id as replyToId, m.is_deleted as isDeleted,
+            m.is_edited as isEdited, m.edited_at as editedAt, m.created_at as createdAt,
+            u.id as senderId, u.username as senderUsername, u.avatar_url as senderAvatar,
+            ms.status as myStatus
+        FROM messages m
+        INNER JOIN users u ON m.sender_id = u.id
+        LEFT JOIN message_statuses ms ON ms.message_id = m.id AND ms.user_id = :userId
+        WHERE m.conversation_id = :convId
+          AND m.created_at <= :leftAt
+          AND (
+              m.created_at < :beforeCreatedAt
+              OR (m.created_at = :beforeCreatedAt AND m.id < :beforeId)
+          )
+          AND NOT EXISTS (SELECT 1 FROM message_hidden mh WHERE mh.message_id = m.id AND mh.user_id = :userId)
+        ORDER BY m.created_at DESC, m.id DESC
+        LIMIT :limit
+        """, nativeQuery = true)
+    List<MessageRowProjection> findMessagesBeforeAndBeforeLeftAt(
+            @Param("convId") Long convId,
+            @Param("userId") Long userId,
+            @Param("leftAt") Instant leftAt,
+            @Param("beforeCreatedAt") Instant beforeCreatedAt,
+            @Param("beforeId") Long beforeId,
+            @Param("limit") int limit
+    );
+
     @Query("SELECT m.createdAt FROM Message m WHERE m.id = :id")
     Instant findCreatedAtById(@Param("id") Long id);
 
     /** Cursor anchor for pagination: must belong to this conversation or the native query breaks (beforeCreatedAt null → returns whole page again). */
     @Query("SELECT m.createdAt FROM Message m WHERE m.id = :id AND m.conversation.id = :conversationId")
     Optional<Instant> findCreatedAtByIdAndConversationId(@Param("id") Long id, @Param("conversationId") Long conversationId);
+
+    @Query("""
+            SELECT m.createdAt
+            FROM Message m
+            WHERE m.id = :id
+              AND m.conversation.id = :conversationId
+              AND m.createdAt <= :leftAt
+            """)
+    Optional<Instant> findCreatedAtByIdAndConversationIdBeforeLeftAt(
+            @Param("id") Long id,
+            @Param("conversationId") Long conversationId,
+            @Param("leftAt") Instant leftAt
+    );
 
     Optional<Message> findFirstByConversation_IdAndSender_IdAndClientMessageIdAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(
             Long conversationId,

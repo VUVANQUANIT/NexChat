@@ -27,6 +27,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    @org.springframework.beans.factory.annotation.Value("${app.security.allowed-origins}")
+    private List<String> allowedOrigins;
+
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final Http401EntryPoint http401EntryPoint;
     private final Http403AccessDeniedHandler http403AccessDeniedHandler;
@@ -55,7 +58,7 @@ public class SecurityConfig {
                         .accessDeniedHandler(http403AccessDeniedHandler)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/refresh").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
@@ -69,7 +72,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:4200"));
+        config.setAllowedOrigins(allowedOrigins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of(
                 HttpHeaders.AUTHORIZATION,

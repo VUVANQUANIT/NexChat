@@ -30,7 +30,7 @@ import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@Service
+@Service("conversationService")
 @RequiredArgsConstructor
 @Slf4j
 public class ConversationServiceImpl implements ConversationService {
@@ -190,7 +190,7 @@ public class ConversationServiceImpl implements ConversationService {
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Conversation not found"));
 
-        if (!conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId())) {
+        if (conversationParticipantRepository.findByConversation_IdAndUser_Id(conversationId, currentUser.getId()).isEmpty()) {
             throw new AppException(ErrorCode.FORBIDDEN, "You are not a participant of this conversation");
         }
 
@@ -221,6 +221,13 @@ public class ConversationServiceImpl implements ConversationService {
         if (existing != null) {
             log.debug("Private conversation between {} and {} already exists (id={})", userId1, userId2, existing.getId());
             return;
+        }
+
+        // Check if blocked
+        Optional<Friendship> friendship = friendshipRepository.findBetweenUsers(userId1, userId2);
+        if (friendship.isPresent() && friendship.get().getStatus() == FriendshipStatus.BLOCKED) {
+            log.warn("Cannot auto-create conversation: User {} and {} have a BLOCKED relationship", userId1, userId2);
+            return; // Or throw exception, but this is auto-create, so let's just skip
         }
 
         Conversation conversation = Conversation.builder()
