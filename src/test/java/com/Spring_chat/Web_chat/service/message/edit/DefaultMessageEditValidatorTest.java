@@ -6,8 +6,10 @@ import com.Spring_chat.Web_chat.enums.MessageType;
 import com.Spring_chat.Web_chat.exception.AppException;
 import com.Spring_chat.Web_chat.exception.ErrorCode;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 
@@ -18,11 +20,19 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class DefaultMessageEditValidatorTest {
 
     private static final Instant CREATED = Instant.parse("2026-01-15T10:00:00Z");
+    private static final int EDIT_WINDOW_MINUTES = 30;
+    private static final Duration EDIT_WINDOW = Duration.ofMinutes(EDIT_WINDOW_MINUTES);
+
+    private DefaultMessageEditValidator createValidator(Clock clock) {
+        DefaultMessageEditValidator validator = new DefaultMessageEditValidator(clock);
+        ReflectionTestUtils.setField(validator, "editWindowMinutes", EDIT_WINDOW_MINUTES);
+        return validator;
+    }
 
     @Test
     void assertEditable_WithinWindowAndDifferentContent_Succeeds() {
         Clock clock = Clock.fixed(Instant.parse("2026-01-15T10:29:59Z"), ZoneOffset.UTC);
-        DefaultMessageEditValidator validator = new DefaultMessageEditValidator(clock);
+        DefaultMessageEditValidator validator = createValidator(clock);
         User actor = User.builder().id(1L).username("alice").build();
         Message message = baseTextMessage(actor, "hello");
 
@@ -31,8 +41,8 @@ class DefaultMessageEditValidatorTest {
 
     @Test
     void assertEditable_ExactlyAtDeadline_Succeeds() {
-        Clock clock = Clock.fixed(CREATED.plus(DefaultMessageEditValidator.EDIT_WINDOW), ZoneOffset.UTC);
-        DefaultMessageEditValidator validator = new DefaultMessageEditValidator(clock);
+        Clock clock = Clock.fixed(CREATED.plus(EDIT_WINDOW), ZoneOffset.UTC);
+        DefaultMessageEditValidator validator = createValidator(clock);
         User actor = User.builder().id(1L).build();
         Message message = baseTextMessage(actor, "a");
 
@@ -41,8 +51,8 @@ class DefaultMessageEditValidatorTest {
 
     @Test
     void assertEditable_AfterDeadline_ThrowsBusinessRule() {
-        Clock clock = Clock.fixed(CREATED.plus(DefaultMessageEditValidator.EDIT_WINDOW).plusSeconds(1), ZoneOffset.UTC);
-        DefaultMessageEditValidator validator = new DefaultMessageEditValidator(clock);
+        Clock clock = Clock.fixed(CREATED.plus(EDIT_WINDOW).plusSeconds(1), ZoneOffset.UTC);
+        DefaultMessageEditValidator validator = createValidator(clock);
         User actor = User.builder().id(1L).build();
         Message message = baseTextMessage(actor, "a");
 
@@ -53,7 +63,7 @@ class DefaultMessageEditValidatorTest {
     @Test
     void assertEditable_NotSender_ThrowsForbidden() {
         Clock clock = Clock.fixed(Instant.parse("2026-01-15T10:15:00Z"), ZoneOffset.UTC);
-        DefaultMessageEditValidator validator = new DefaultMessageEditValidator(clock);
+        DefaultMessageEditValidator validator = createValidator(clock);
         User sender = User.builder().id(1L).build();
         User intruder = User.builder().id(2L).build();
         Message message = baseTextMessage(sender, "secret");
@@ -65,7 +75,7 @@ class DefaultMessageEditValidatorTest {
     @Test
     void assertEditable_DeletedMessage_ThrowsBusinessRule() {
         Clock clock = Clock.fixed(Instant.parse("2026-01-15T10:15:00Z"), ZoneOffset.UTC);
-        DefaultMessageEditValidator validator = new DefaultMessageEditValidator(clock);
+        DefaultMessageEditValidator validator = createValidator(clock);
         User actor = User.builder().id(1L).build();
         Message message = baseTextMessage(actor, "a");
         message.setIsDeleted(true);
@@ -77,7 +87,7 @@ class DefaultMessageEditValidatorTest {
     @Test
     void assertEditable_NonTextType_ThrowsBusinessRule() {
         Clock clock = Clock.fixed(Instant.parse("2026-01-15T10:15:00Z"), ZoneOffset.UTC);
-        DefaultMessageEditValidator validator = new DefaultMessageEditValidator(clock);
+        DefaultMessageEditValidator validator = createValidator(clock);
         User actor = User.builder().id(1L).build();
         Message message = baseTextMessage(actor, "https://example.com/a.png");
         message.setType(MessageType.IMAGE);
@@ -89,7 +99,7 @@ class DefaultMessageEditValidatorTest {
     @Test
     void assertEditable_SameContent_ThrowsBusinessRule() {
         Clock clock = Clock.fixed(Instant.parse("2026-01-15T10:15:00Z"), ZoneOffset.UTC);
-        DefaultMessageEditValidator validator = new DefaultMessageEditValidator(clock);
+        DefaultMessageEditValidator validator = createValidator(clock);
         User actor = User.builder().id(1L).build();
         Message message = baseTextMessage(actor, "same");
 
@@ -107,3 +117,4 @@ class DefaultMessageEditValidatorTest {
                 .build();
     }
 }
+
