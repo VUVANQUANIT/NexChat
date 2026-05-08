@@ -118,8 +118,8 @@ class MessageServiceImplTest {
             Long beforeId = null;
 
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
-                    .willReturn(true);
+            given(conversationParticipantRepository.findByConversation_IdAndUser_Id(conversationId, currentUser.getId()))
+                    .willReturn(Optional.of(ConversationParticipant.builder().build()));
 
             List<MessageRowProjection> mockRows = new ArrayList<>();
             for (int i = 0; i < 5; i++) {
@@ -165,8 +165,8 @@ class MessageServiceImplTest {
             Instant beforeCreatedAt = Instant.now().minusSeconds(60);
 
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
-                    .willReturn(true);
+            given(conversationParticipantRepository.findByConversation_IdAndUser_Id(conversationId, currentUser.getId()))
+                    .willReturn(Optional.of(ConversationParticipant.builder().build()));
             given(messageRepository.findCreatedAtByIdAndConversationId(beforeId, conversationId)).willReturn(Optional.of(beforeCreatedAt));
 
             List<MessageRowProjection> mockRows = new ArrayList<>();
@@ -214,8 +214,8 @@ class MessageServiceImplTest {
             Long conversationId = 100L;
 
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
-                    .willReturn(true);
+            given(conversationParticipantRepository.findByConversation_IdAndUser_Id(conversationId, currentUser.getId()))
+                    .willReturn(Optional.of(ConversationParticipant.builder().build()));
 
             MessageRowProjection row = mock(MessageRowProjection.class);
             given(row.getId()).willReturn(1L);
@@ -254,8 +254,8 @@ class MessageServiceImplTest {
             Long conversationId = 100L;
 
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
-                    .willReturn(false);
+            given(conversationParticipantRepository.findByConversation_IdAndUser_Id(conversationId, currentUser.getId()))
+                    .willReturn(Optional.empty());
 
             // When & Then
             assertThatThrownBy(() -> messageService.getMessageList(null, 30, conversationId))
@@ -274,8 +274,8 @@ class MessageServiceImplTest {
             Long beforeId = null;
 
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
-                    .willReturn(true);
+            given(conversationParticipantRepository.findByConversation_IdAndUser_Id(conversationId, currentUser.getId()))
+                    .willReturn(Optional.of(ConversationParticipant.builder().build()));
             given(messageRepository.findLatestMessages(anyLong(), anyLong(), anyInt()))
                     .willReturn(new ArrayList<>());
 
@@ -294,8 +294,8 @@ class MessageServiceImplTest {
             Long beforeId = 999L;
 
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
-                    .willReturn(true);
+            given(conversationParticipantRepository.findByConversation_IdAndUser_Id(conversationId, currentUser.getId()))
+                    .willReturn(Optional.of(ConversationParticipant.builder().build()));
             given(messageRepository.findCreatedAtByIdAndConversationId(beforeId, conversationId)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> messageService.getMessageList(beforeId, 30, conversationId))
@@ -544,7 +544,7 @@ class MessageServiceImplTest {
             request.setLastReadMessageId(messageId);
 
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
-            given(conversationParticipantRepository.findByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
+            given(conversationParticipantRepository.findActiveByConversationIdAndUserIdForUpdate(conversationId, currentUser.getId()))
                     .willReturn(Optional.of(participant));
             given(messageRepository.findById(messageId)).willReturn(Optional.of(message));
             given(messageDeliveryStatusRepo.countUnreadMessages(currentUser.getId(), conversationId, MessageDeliveryStatus.SEEN)).willReturn(0L);
@@ -583,7 +583,7 @@ class MessageServiceImplTest {
                     .build();
 
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
-            given(conversationParticipantRepository.findByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
+            given(conversationParticipantRepository.findActiveByConversationIdAndUserIdForUpdate(conversationId, currentUser.getId()))
                     .willReturn(Optional.of(ConversationParticipant.builder().conversation(Conversation.builder().id(conversationId).build()).user(currentUser).build()));
             given(messageRepository.findById(99L)).willReturn(Optional.of(otherMessage));
 
@@ -601,7 +601,7 @@ class MessageServiceImplTest {
             request.setLastReadMessageId(99L);
 
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
-            given(conversationParticipantRepository.findByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
+            given(conversationParticipantRepository.findActiveByConversationIdAndUserIdForUpdate(conversationId, currentUser.getId()))
                     .willReturn(Optional.empty());
 
             assertThatThrownBy(() -> messageService.markAsRead(conversationId, request))
@@ -621,8 +621,8 @@ class MessageServiceImplTest {
         void getUnreadCount_Success() {
             Long conversationId = 10L;
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
-                    .willReturn(true);
+            given(conversationParticipantRepository.findByConversation_IdAndUser_Id(conversationId, currentUser.getId()))
+                    .willReturn(Optional.of(ConversationParticipant.builder().build()));
             given(messageDeliveryStatusRepo.countUnreadMessages(currentUser.getId(), conversationId, MessageDeliveryStatus.SEEN))
                     .willReturn(7L);
 
@@ -639,8 +639,8 @@ class MessageServiceImplTest {
         void getUnreadCount_ForbiddenWhenNotParticipant() {
             Long conversationId = 10L;
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, currentUser.getId()))
-                    .willReturn(false);
+            given(conversationParticipantRepository.findByConversation_IdAndUser_Id(conversationId, currentUser.getId()))
+                    .willReturn(Optional.empty());
 
             assertThatThrownBy(() -> messageService.getUnreadCount(conversationId))
                     .isInstanceOf(AppException.class)

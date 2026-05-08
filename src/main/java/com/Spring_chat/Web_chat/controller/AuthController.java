@@ -4,6 +4,8 @@ import com.Spring_chat.Web_chat.dto.auth.LoginRequestDTO;
 import com.Spring_chat.Web_chat.dto.auth.LoginResponseDTO;
 import com.Spring_chat.Web_chat.dto.auth.RefreshRequestDTO;
 import com.Spring_chat.Web_chat.dto.auth.RegisterRequestDTO;
+import com.Spring_chat.Web_chat.exception.AppException;
+import com.Spring_chat.Web_chat.exception.ErrorCode;
 import com.Spring_chat.Web_chat.security.AuthenticatedUser;
 import com.Spring_chat.Web_chat.service.AuthService;
 import com.Spring_chat.Web_chat.service.RefreshTokenService;
@@ -62,11 +64,17 @@ public class AuthController {
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void logout(@AuthenticationPrincipal AuthenticatedUser principal) {
+        if (principal == null) {
+            throw new AppException(ErrorCode.UNAUTHORIZED, "Chưa đăng nhập hoặc token không hợp lệ");
+        }
         authService.logout(principal.id());
     }
 
     private String extractClientIp(HttpServletRequest request) {
-        // TODO: enable trusted proxy mode later if we use a standard reverse proxy (e.g. ForwardedHeaderFilter)
+        String xff = request.getHeader("X-Forwarded-For");
+        if (xff != null && !xff.isBlank()) {
+            return xff.split(",")[0].trim();
+        }
         return request.getRemoteAddr();
     }
 }

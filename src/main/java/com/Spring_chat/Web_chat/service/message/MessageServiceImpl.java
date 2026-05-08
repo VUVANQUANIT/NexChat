@@ -92,13 +92,15 @@ public class MessageServiceImpl implements MessageService {
 
         log.info("User {} requesting messages for conversation {}, beforeId={}, limit={}", userId, conversationId, beforeId, limit);
 
-        validateParticipant(conversationId, userId);
+        ConversationParticipant participant = findParticipantForHistory(conversationId, userId);
 
         int queryLimit = normalizeLimit(limit);
 
         Instant beforeCreatedAt = null;
         if (beforeId != null) {
-            Optional<Instant> anchor = messageRepository.findCreatedAtByIdAndConversationId(beforeId, conversationId);
+            Optional<Instant> anchor = participant.getLeftAt() == null
+                    ? messageRepository.findCreatedAtByIdAndConversationId(beforeId, conversationId)
+                    : messageRepository.findCreatedAtByIdAndConversationIdBeforeLeftAt(beforeId, conversationId, participant.getLeftAt());
             if (anchor.isEmpty()) {
                 throw new AppException(
                         ErrorCode.RESOURCE_NOT_FOUND,
@@ -112,9 +114,20 @@ public class MessageServiceImpl implements MessageService {
         List<MessageRowProjection> rows;
         int fetchLimit = queryLimit + 1;
         if (beforeCreatedAt == null) {
-            rows = messageRepository.findLatestMessages(conversationId, userId, fetchLimit);
+            rows = participant.getLeftAt() == null
+                    ? messageRepository.findLatestMessages(conversationId, userId, fetchLimit)
+                    : messageRepository.findLatestMessagesBeforeLeftAt(conversationId, userId, participant.getLeftAt(), fetchLimit);
         } else {
-            rows = messageRepository.findMessagesBefore(conversationId, userId, beforeCreatedAt, beforeId, fetchLimit);
+            rows = participant.getLeftAt() == null
+                    ? messageRepository.findMessagesBefore(conversationId, userId, beforeCreatedAt, beforeId, fetchLimit)
+                    : messageRepository.findMessagesBeforeAndBeforeLeftAt(
+                            conversationId,
+                            userId,
+                            participant.getLeftAt(),
+                            beforeCreatedAt,
+                            beforeId,
+                            fetchLimit
+                    );
         }
 
         boolean hasMore = rows.size() > queryLimit;
@@ -322,7 +335,7 @@ public class MessageServiceImpl implements MessageService {
         Long userId = currentUser.getId();
 
         ConversationParticipant participant = conversationParticipantRepository
-                .findByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, userId)
+                .findActiveByConversationIdAndUserIdForUpdate(conversationId, userId)
                 .orElseThrow(() -> new AppException(
                         ErrorCode.FORBIDDEN,
                         "Bạn không có quyền hoặc đã rời nhóm"
@@ -383,7 +396,14 @@ public class MessageServiceImpl implements MessageService {
         User currentUser = currentUserProvider.findCurrentUserOrThrow();
         Long userId = currentUser.getId();
 
-        validateParticipant(conversationId, userId);
+        ConversationParticipant participant = findParticipantForHistory(conversationId, userId);
+        if (participant.getLeftAt() != null) {
+            UnreadCountResponseDTO response = UnreadCountResponseDTO.builder()
+                    .conversationId(conversationId)
+                    .unreadCount(0)
+                    .build();
+            return ApiResponse.ok("OK", response);
+        }
 
         long unreadCount = messageDeliveryStatusRepo.countUnreadMessages(userId, conversationId, MessageDeliveryStatus.SEEN);
         UnreadCountResponseDTO response = UnreadCountResponseDTO.builder()
@@ -402,22 +422,13 @@ public class MessageServiceImpl implements MessageService {
     }
 
 
-    private void validateParticipant(Long conversationId, Long userId) {
-        String cacheKey = userId + ":" + conversationId;
-        Boolean isParticipant = participantCache.getIfPresent(cacheKey);
-        
-        if (isParticipant != null && isParticipant) {
-            return; // Cache hit and valid
-        }
-
-        isParticipant = conversationParticipantRepository
-                .existsByConversation_IdAndUser_IdAndLeftAtIsNull(conversationId, userId);
-        if (!isParticipant) {
-            log.warn("User {} attempted to read conversation {} without being a participant", userId, conversationId);
-            throw new AppException(ErrorCode.FORBIDDEN, "Bạn không phải là thành viên của cuộc hội thoại này");
-        }
-        
-        participantCache.put(cacheKey, true);
+    private ConversationParticipant findParticipantForHistory(Long conversationId, Long userId) {
+        return conversationParticipantRepository
+                .findByConversation_IdAndUser_Id(conversationId, userId)
+                .orElseThrow(() -> {
+                    log.warn("User {} attempted to read conversation {} without being a participant", userId, conversationId);
+                    return new AppException(ErrorCode.FORBIDDEN, "Bạn không phải là thành viên của cuộc hội thoại này");
+                });
     }
 
     private int normalizeLimit(Integer requestedLimit) {

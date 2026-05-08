@@ -17,7 +17,8 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class DefaultMessageEditValidator implements MessageEditValidator {
 
-    static final Duration EDIT_WINDOW = Duration.ofMinutes(30);
+    @org.springframework.beans.factory.annotation.Value("${app.message.edit-window-minutes}")
+    private int editWindowMinutes;
 
     private final Clock clock;
 
@@ -37,9 +38,9 @@ public class DefaultMessageEditValidator implements MessageEditValidator {
             throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED, "Chỉ có thể sửa tin nhắn dạng TEXT");
         }
         Instant now = Instant.now(clock);
-        Instant deadline = message.getCreatedAt().plus(EDIT_WINDOW);
+        Instant deadline = message.getCreatedAt().plus(Duration.ofMinutes(editWindowMinutes));
         if (now.isAfter(deadline)) {
-            throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED, "Hết thời gian cho phép sửa tin nhắn (30 phút)");
+            throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED, "Hết thời gian cho phép sửa tin nhắn (" + editWindowMinutes + " phút)");
         }
         String current = message.getContent() == null ? "" : message.getContent().trim();
         if (current.equals(normalizedNewContent)) {

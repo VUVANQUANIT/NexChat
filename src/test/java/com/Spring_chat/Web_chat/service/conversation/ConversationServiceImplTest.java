@@ -278,7 +278,8 @@ class ConversationServiceImplTest {
 
             given(userRepository.findById(1L)).willReturn(Optional.of(alice));
             given(conversationRepository.findById(55L)).willReturn(Optional.of(conversation));
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(55L, 1L)).willReturn(true);
+            given(conversationParticipantRepository.findByConversation_IdAndUser_Id(55L, 1L))
+                    .willReturn(Optional.of(ConversationParticipant.builder().conversation(conversation).user(alice).build()));
             given(conversationParticipantRepository.findAllByConversation_IdOrderByJoinedAtAsc(55L)).willReturn(participants);
             given(conversationMapper.toConversationDetailDTO(conversation, participants)).willReturn(detailDTO);
 
@@ -315,7 +316,7 @@ class ConversationServiceImplTest {
 
             given(userRepository.findById(1L)).willReturn(Optional.of(alice));
             given(conversationRepository.findById(55L)).willReturn(Optional.of(conversation));
-            given(conversationParticipantRepository.existsByConversation_IdAndUser_IdAndLeftAtIsNull(55L, 1L)).willReturn(false);
+            given(conversationParticipantRepository.findByConversation_IdAndUser_Id(55L, 1L)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> conversationService.getConversationDetail(55L))
                     .isInstanceOf(AppException.class)

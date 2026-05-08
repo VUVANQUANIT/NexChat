@@ -14,6 +14,9 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @RequiredArgsConstructor
 public class WebSocketStompConfig implements WebSocketMessageBrokerConfigurer {
 
+    @org.springframework.beans.factory.annotation.Value("${app.security.allowed-origins}")
+    private String[] allowedOrigins;
+
     private final WebSocketAuthHandshakeInterceptor webSocketAuthHandshakeInterceptor;
     private final WebSocketPrincipalHandshakeHandler webSocketPrincipalHandshakeHandler;
 
@@ -27,7 +30,7 @@ public class WebSocketStompConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("http://localhost:4200")
+                .setAllowedOriginPatterns(allowedOrigins)
                 .addInterceptors(webSocketAuthHandshakeInterceptor)
                 .setHandshakeHandler(webSocketPrincipalHandshakeHandler)
                 .withSockJS();
