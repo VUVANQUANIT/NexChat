@@ -21,5 +21,4 @@ public interface MessageService {
     ApiResponse<DeliveredReceiptResponseDTO> markAsDelivered(DeliveredReceiptRequestDTO request);
     ApiResponse<ReadReceiptResponseDTO> markAsRead(Long conversationId, ReadReceiptRequestDTO request);
     ApiResponse<UnreadCountResponseDTO> getUnreadCount(Long conversationId);
-    void invalidateParticipantCache(Long conversationId, Long userId);
 }

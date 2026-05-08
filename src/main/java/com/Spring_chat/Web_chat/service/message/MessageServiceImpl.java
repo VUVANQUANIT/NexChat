@@ -46,9 +46,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import java.util.concurrent.TimeUnit;
+
 import java.time.Duration;
 import java.net.URI;
 import java.time.Instant;
@@ -77,12 +75,6 @@ public class MessageServiceImpl implements MessageService {
     private static final Duration IDEMPOTENCY_TTL = Duration.ofSeconds(30);
     private static final String IDEMPOTENCY_PREFIX = "chat:idempotency:send-message:";
 
-    // Simple cache to avoid redundant existsBy... queries (optimization)
-    // Key: userId:conversationId, Value: Boolean indicating participant exists
-    private final Cache<String, Boolean> participantCache = Caffeine.newBuilder()
-            .expireAfterWrite(60, TimeUnit.SECONDS)
-            .maximumSize(10000)
-            .build();
 
     @Override
     @Transactional(readOnly = true)
@@ -238,7 +230,6 @@ public class MessageServiceImpl implements MessageService {
                     .toList();
             messageDeliveryStatusRepo.saveAll(initialStatuses);
 
-            participantCache.put(senderId + ":" + conversationId, true);
             persistIdempotencyResult(idempotencyKey, savedMessage.getId());
 
             SendMessageResponseDTO response = toSendMessageResponse(savedMessage);
@@ -281,8 +272,6 @@ public class MessageServiceImpl implements MessageService {
         message.setEditedAt(editedAt);
         message.setEditedBy(currentUser);
         Message saved = messageRepository.save(message);
-
-        participantCache.put(editorId + ":" + conversationId, true);
 
         applicationEventPublisher.publishEvent(new MessageEditedEvent(
                 saved.getId(),
@@ -413,13 +402,6 @@ public class MessageServiceImpl implements MessageService {
         return ApiResponse.ok("OK", response);
     }
 
-    @Override
-    public void invalidateParticipantCache(Long conversationId, Long userId) {
-        if (conversationId == null || userId == null) {
-            return;
-        }
-        participantCache.invalidate(userId + ":" + conversationId);
-    }
 
 
     private ConversationParticipant findParticipantForHistory(Long conversationId, Long userId) {

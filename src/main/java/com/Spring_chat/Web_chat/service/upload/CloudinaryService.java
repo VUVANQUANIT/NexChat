@@ -58,6 +58,14 @@ public class CloudinaryService {
             throw new AppException(ErrorCode.VALIDATION_FAILED, "File must not be empty");
         }
 
+        if (uploadProperties.getMaxFileSize() != null) {
+            long maxBytes = uploadProperties.getMaxFileSize().toBytes();
+            if (file.getSize() > maxBytes) {
+                throw new AppException(ErrorCode.VALIDATION_FAILED,
+                        "File size exceeds the maximum allowed limit of " + uploadProperties.getMaxFileSize());
+            }
+        }
+
         String contentType = file.getContentType();
         if (contentType == null || !getAllowedMimeTypes().contains(normalizeMimeType(contentType))) {
             throw new AppException(ErrorCode.BUSINESS_RULE_VIOLATED, "Only image files (jpg, jpeg, png, gif, webp) are allowed");

@@ -9,6 +9,7 @@ import com.Spring_chat.Web_chat.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,7 +23,11 @@ import static com.Spring_chat.Web_chat.enums.PermissionName.*;
 /**
  * Runs once on startup to seed Roles and Permissions if they do not yet exist.
  * Idempotent — safe to re-run on every boot.
+ *
+ * <p>NOT active on the {@code prod} Spring profile — production databases
+ * should be seeded via Flyway migration scripts instead.
  */
+@Profile("!prod")
 @Component
 @RequiredArgsConstructor
 @Slf4j

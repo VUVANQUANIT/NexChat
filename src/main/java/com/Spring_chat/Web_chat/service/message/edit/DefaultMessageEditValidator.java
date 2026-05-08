@@ -6,6 +6,7 @@ import com.Spring_chat.Web_chat.enums.MessageType;
 import com.Spring_chat.Web_chat.exception.AppException;
 import com.Spring_chat.Web_chat.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
@@ -17,7 +18,7 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class DefaultMessageEditValidator implements MessageEditValidator {
 
-    @org.springframework.beans.factory.annotation.Value("${app.message.edit-window-minutes}")
+    @Value("${app.message.edit-window-minutes}")
     private int editWindowMinutes;
 
     private final Clock clock;
