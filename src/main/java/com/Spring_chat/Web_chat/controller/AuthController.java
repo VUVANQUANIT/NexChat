@@ -12,6 +12,7 @@ import com.Spring_chat.Web_chat.service.RefreshTokenService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -25,6 +26,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
+
+    /**
+     * Only trust X-Forwarded-For when the app is running behind a known reverse proxy.
+     * Default: false (safe for local dev and environments without a proxy).
+     * Set TRUST_PROXY=true in production when behind nginx/ELB/Cloudflare.
+     */
+    @Value("${app.security.trust-proxy:false}")
+    private boolean trustProxy;
 
     private final AuthService authService;
     private final RefreshTokenService refreshTokenService;
@@ -71,9 +80,11 @@ public class AuthController {
     }
 
     private String extractClientIp(HttpServletRequest request) {
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
+        if (trustProxy) {
+            String xff = request.getHeader("X-Forwarded-For");
+            if (xff != null && !xff.isBlank()) {
+                return xff.split(",")[0].trim();
+            }
         }
         return request.getRemoteAddr();
     }

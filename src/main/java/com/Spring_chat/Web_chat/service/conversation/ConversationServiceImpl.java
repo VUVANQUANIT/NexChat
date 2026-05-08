@@ -346,7 +346,6 @@ public class ConversationServiceImpl implements ConversationService {
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Người dùng không phải thành viên của nhóm"));
 
         if (targetParticipant.getLeftAt() != null) {
-            messageService.invalidateParticipantCache(conversationId, userId);
             return ApiResponse.ok("User already left", null); // Idempotent: already left
         }
 
@@ -359,7 +358,6 @@ public class ConversationServiceImpl implements ConversationService {
         // Thực hiện rời nhóm/kick
         targetParticipant.setLeftAt(Instant.now());
         conversationParticipantRepository.save(targetParticipant);
-        messageService.invalidateParticipantCache(conversationId, userId);
 
         // Nếu chủ nhóm rời đi -> chuyển quyền owner
         if (isSelf && isOwner) {
