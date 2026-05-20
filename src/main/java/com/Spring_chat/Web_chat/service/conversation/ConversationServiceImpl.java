@@ -16,7 +16,6 @@ import com.Spring_chat.Web_chat.exception.ErrorCode;
 import com.Spring_chat.Web_chat.mappers.ConversationMapper;
 import com.Spring_chat.Web_chat.repository.*;
 import com.Spring_chat.Web_chat.service.common.CurrentUserProvider;
-import com.Spring_chat.Web_chat.service.common.ProjectionTimestampConverter;
 import com.Spring_chat.Web_chat.service.message.MessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +25,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -146,12 +144,19 @@ public class ConversationServiceImpl implements ConversationService {
         int limit = Math.min(pageable.getPageSize(), 50);
         Instant onlineThreshold = Instant.now().minusSeconds(5 * 60L);
 
-        OffsetDateTime cursor = null;
+        // Cursor is an ISO-8601 Instant string (e.g. "2024-01-01T00:00:00Z")
+        java.time.OffsetDateTime cursor = null;
         if (cursorStr != null && !cursorStr.isBlank()) {
             try {
-                cursor = OffsetDateTime.parse(cursorStr);
+                // Try parsing as Instant first, then fall back to OffsetDateTime
+                Instant cursorInstant = Instant.parse(cursorStr);
+                cursor = cursorInstant.atOffset(java.time.ZoneOffset.UTC);
             } catch (Exception e) {
-                log.warn("Invalid cursor format: {}", cursorStr);
+                try {
+                    cursor = java.time.OffsetDateTime.parse(cursorStr);
+                } catch (Exception ex) {
+                    log.warn("Invalid cursor format: {}", cursorStr);
+                }
             }
         }
 
@@ -169,10 +174,10 @@ public class ConversationServiceImpl implements ConversationService {
         Instant nextCursor = null;
         if (hasMore && !page.isEmpty()) {
             ConversationRowProjection last = page.get(page.size() - 1);
-            Instant lastMessageCreatedAt = ProjectionTimestampConverter.toInstant(last.getLastMessageCreatedAt());
-            nextCursor = lastMessageCreatedAt != null
-                    ? lastMessageCreatedAt
-                    : ProjectionTimestampConverter.toInstant(last.getConversationCreatedAt());
+            java.time.OffsetDateTime lastMessageCreatedAt = last.getLastMessageCreatedAt();
+            nextCursor = (lastMessageCreatedAt != null)
+                    ? lastMessageCreatedAt.toInstant()
+                    : last.getConversationCreatedAt().toInstant();
         }
 
         ConversationListDTO result = new ConversationListDTO();
@@ -426,7 +431,9 @@ public class ConversationServiceImpl implements ConversationService {
         dto.setType(ConversationType.valueOf(row.getType()));
         dto.setTitle(row.getTitle());
         dto.setAvatarUrl(row.getAvatarUrl());
-        dto.setCreatedAt(ProjectionTimestampConverter.toInstant(row.getConversationCreatedAt()));
+        // getConversationCreatedAt() returns OffsetDateTime from native query
+        dto.setCreatedAt(row.getConversationCreatedAt() != null
+                ? row.getConversationCreatedAt().toInstant() : null);
 
         if (row.getLastMessageId() != null) {
             LastMessageDTO lastMsg = new LastMessageDTO();
@@ -436,7 +443,9 @@ public class ConversationServiceImpl implements ConversationService {
                     ? MessageType.valueOf(row.getLastMessageType()) : null);
             lastMsg.setSenderId(row.getLastMessageSenderId());
             lastMsg.setSenderUsername(row.getSenderUsername());
-            lastMsg.setCreatedAt(ProjectionTimestampConverter.toInstant(row.getLastMessageCreatedAt()));
+            // getLastMessageCreatedAt() returns OffsetDateTime from native query
+            lastMsg.setCreatedAt(row.getLastMessageCreatedAt() != null
+                    ? row.getLastMessageCreatedAt().toInstant() : null);
             lastMsg.setDeleted(Boolean.TRUE.equals(row.getLastMessageIsDeleted()));
             dto.setLastMessage(lastMsg);
         }

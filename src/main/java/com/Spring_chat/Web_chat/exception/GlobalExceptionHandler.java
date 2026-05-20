@@ -1,12 +1,12 @@
 package com.Spring_chat.Web_chat.exception;
 
-import com.Spring_chat.Web_chat.service.InvalidRefreshTokenException;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.security.authentication.BadCredentialsException;
+
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.validation.FieldError;
@@ -80,11 +80,7 @@ public class GlobalExceptionHandler {
         return ApiErrorBuilder.toResponseEntity(ex.getErrorCode(), ex.getMessage(), req.getRequestURI(), null);
     }
 
-    @ExceptionHandler(InvalidRefreshTokenException.class)
-    public ResponseEntity<ApiErrorResponse> handleInvalidRefreshToken(
-            InvalidRefreshTokenException ex, HttpServletRequest req) {
-        return ApiErrorBuilder.toResponseEntity(ErrorCode.INVALID_REFRESH_TOKEN, ex.getMessage(), req.getRequestURI(), null);
-    }
+
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiErrorResponse> handleMaxUploadSizeExceeded(
@@ -96,11 +92,7 @@ public class GlobalExceptionHandler {
         return ApiErrorBuilder.toResponseEntity(ErrorCode.VALIDATION_FAILED, detail, req.getRequestURI(), null);
     }
 
-    @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ApiErrorResponse> handleBadCredentials(
-            BadCredentialsException ex, HttpServletRequest req) {
-        return ApiErrorBuilder.toResponseEntity(ErrorCode.INVALID_CREDENTIALS, req.getRequestURI(), null);
-    }
+
 
     @ExceptionHandler(DisabledException.class)
     public ResponseEntity<ApiErrorResponse> handleDisabled(

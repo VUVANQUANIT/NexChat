@@ -5,7 +5,7 @@ import com.Spring_chat.Web_chat.dto.message.DeliveredReceiptRequestDTO;
 import com.Spring_chat.Web_chat.dto.message.DeliveredReceiptResponseDTO;
 import com.Spring_chat.Web_chat.dto.message.DeliveryStatusesDTO;
 import com.Spring_chat.Web_chat.dto.message.MessageListResponseDTO;
-import com.Spring_chat.Web_chat.dto.message.MessageRowProjection;
+import com.Spring_chat.Web_chat.dto.message.MessageRowDTO;
 import com.Spring_chat.Web_chat.dto.message.MessageSummaryDTO;
 import com.Spring_chat.Web_chat.dto.message.ReadReceiptRequestDTO;
 import com.Spring_chat.Web_chat.dto.message.ReadReceiptResponseDTO;
@@ -35,7 +35,6 @@ import com.Spring_chat.Web_chat.event.MessageEditedEvent;
 import com.Spring_chat.Web_chat.event.MessageCreatedEvent;
 import com.Spring_chat.Web_chat.event.MessageReadEvent;
 import com.Spring_chat.Web_chat.service.common.CurrentUserProvider;
-import com.Spring_chat.Web_chat.service.common.ProjectionTimestampConverter;
 import com.Spring_chat.Web_chat.service.message.delete.MessageDeletionService;
 import com.Spring_chat.Web_chat.service.message.edit.MessageEditValidator;
 import lombok.RequiredArgsConstructor;
@@ -103,22 +102,23 @@ public class MessageServiceImpl implements MessageService {
         }
 
         // Tách 2 query để tránh lỗi PostgreSQL "could not determine data type" khi truyền null vào prepared statement
-        List<MessageRowProjection> rows;
+        List<MessageRowDTO> rows;
         int fetchLimit = queryLimit + 1;
+        org.springframework.data.domain.PageRequest pageRequest = org.springframework.data.domain.PageRequest.of(0, fetchLimit);
         if (beforeCreatedAt == null) {
             rows = participant.getLeftAt() == null
-                    ? messageRepository.findLatestMessages(conversationId, userId, fetchLimit)
-                    : messageRepository.findLatestMessagesBeforeLeftAt(conversationId, userId, participant.getLeftAt(), fetchLimit);
+                    ? messageRepository.findLatestMessages(conversationId, userId, pageRequest)
+                    : messageRepository.findLatestMessagesBeforeLeftAt(conversationId, userId, participant.getLeftAt(), pageRequest);
         } else {
             rows = participant.getLeftAt() == null
-                    ? messageRepository.findMessagesBefore(conversationId, userId, beforeCreatedAt, beforeId, fetchLimit)
+                    ? messageRepository.findMessagesBefore(conversationId, userId, beforeCreatedAt, beforeId, pageRequest)
                     : messageRepository.findMessagesBeforeAndBeforeLeftAt(
                             conversationId,
                             userId,
                             participant.getLeftAt(),
                             beforeCreatedAt,
                             beforeId,
-                            fetchLimit
+                            pageRequest
                     );
         }
 
@@ -128,7 +128,7 @@ public class MessageServiceImpl implements MessageService {
             rows.remove(rows.size() - 1);
         }
 
-        List<Long> messageIds = rows.stream().map(MessageRowProjection::getId).toList();
+        List<Long> messageIds = rows.stream().map(MessageRowDTO::getId).toList();
 
         Map<Long, List<DeliveryStatusesDTO>> statusMap;
         if (messageIds.isEmpty()) {
@@ -560,7 +560,7 @@ public class MessageServiceImpl implements MessageService {
         return dto;
     }
 
-    private MessageSummaryDTO toMessageSummary(MessageRowProjection row, List<DeliveryStatusesDTO> deliveryStatuses) {
+    private MessageSummaryDTO toMessageSummary(MessageRowDTO row, List<DeliveryStatusesDTO> deliveryStatuses) {
         MessageSummaryDTO dto = new MessageSummaryDTO();
         dto.setId(row.getId());
         dto.setConversationId(row.getConversationId());
@@ -583,8 +583,8 @@ public class MessageServiceImpl implements MessageService {
         dto.setType(row.getType());
         dto.setReplyTo(row.getReplyToId());
         dto.setEdited(row.getIsEdited() != null && row.getIsEdited());
-        dto.setEditedAt(ProjectionTimestampConverter.toInstant(row.getEditedAt()));
-        dto.setCreatedAt(ProjectionTimestampConverter.toInstant(row.getCreatedAt()));
+        dto.setEditedAt(row.getEditedAt());
+        dto.setCreatedAt(row.getCreatedAt());
         dto.setMyStatus(row.getMyStatus());
         dto.setDeliveryStatuses(deliveryStatuses);
         

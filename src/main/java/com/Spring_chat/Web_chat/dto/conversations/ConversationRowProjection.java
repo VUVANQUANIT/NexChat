@@ -1,25 +1,30 @@
 package com.Spring_chat.Web_chat.dto.conversations;
 
+import java.time.OffsetDateTime;
+
 /**
  * Spring Data JPA projection for the conversation inbox native query.
  *
- * The getter types must match the native result mapping.
+ * Getters for timestamp columns use OffsetDateTime because Hibernate maps
+ * native-query timestamptz results to OffsetDateTime (not Instant) when
+ * using interface projections.  The service layer calls .toInstant() before
+ * passing values to DTOs (see GEMINI.md §7).
  */
 public interface ConversationRowProjection {
     Long getId();
     String getType();
     String getTitle();
     String getAvatarUrl();
-    /** Native query timestamp runtime type varies by dialect (Instant/OffsetDateTime/Timestamp). */
-    Object getConversationCreatedAt();
+    /** timestamptz column — convert to Instant in service via .toInstant(). */
+    OffsetDateTime getConversationCreatedAt();
 
     Long getLastMessageId();
     String getLastMessageContent();
     String getLastMessageType();
     Long getLastMessageSenderId();
     String getSenderUsername();
-    /** Native query timestamp runtime type varies by dialect (Instant/OffsetDateTime/Timestamp). */
-    Object getLastMessageCreatedAt();
+    /** timestamptz column — convert to Instant in service via .toInstant(). */
+    OffsetDateTime getLastMessageCreatedAt();
     Boolean getLastMessageIsDeleted();
 
     Long getUnreadCount();

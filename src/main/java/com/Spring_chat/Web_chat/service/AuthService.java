@@ -13,7 +13,8 @@ import com.Spring_chat.Web_chat.repository.RoleRepository;
 import com.Spring_chat.Web_chat.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.BadCredentialsException;
+import com.Spring_chat.Web_chat.exception.AppException;
+import com.Spring_chat.Web_chat.exception.ErrorCode;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -66,10 +67,10 @@ public class AuthService {
     @Transactional
     public LoginResponseDTO login(LoginRequestDTO dto, String clientIp, String userAgent) {
         User user = userRepository.findByUsername(dto.getUsername())
-                .orElseThrow(() -> new BadCredentialsException("Invalid credentials"));
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_CREDENTIALS));
 
         if (!passwordEncoder.matches(dto.getPassword(), user.getPasswordHash())) {
-            throw new BadCredentialsException("Invalid credentials");
+            throw new AppException(ErrorCode.INVALID_CREDENTIALS);
         }
 
         if (user.getStatus() == UserStatus.BANNED) {

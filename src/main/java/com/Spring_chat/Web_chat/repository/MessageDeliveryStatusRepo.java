@@ -20,8 +20,11 @@ public interface MessageDeliveryStatusRepo extends JpaRepository<MessageStatus, 
                 ms.updatedAt = :updatedAt
             WHERE ms.user.id = :userId
               AND ms.status <> :seenStatus
-              AND ms.message.conversation.id = :conversationId
-              AND ms.message.id <= :lastReadMessageId
+              AND ms.message.id IN (
+                  SELECT m.id FROM Message m 
+                  WHERE m.conversation.id = :conversationId 
+                    AND m.id <= :lastReadMessageId
+              )
             """)
     int updateStatusToSeenForUserAndConversation(
             @Param("userId") Long userId,

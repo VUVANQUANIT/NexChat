@@ -17,7 +17,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.authentication.BadCredentialsException;
+
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.util.Optional;
@@ -194,7 +194,9 @@ class AuthServiceTest {
             given(userRepository.findByUsername("alice")).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> authService.login(dto, IP, AGENT))
-                    .isInstanceOf(BadCredentialsException.class);
+                    .isInstanceOf(AppException.class)
+                    .extracting(e -> ((AppException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.INVALID_CREDENTIALS);
         }
 
         @Test
@@ -204,7 +206,9 @@ class AuthServiceTest {
             given(passwordEncoder.matches(PASSWORD, HASHED)).willReturn(false);
 
             assertThatThrownBy(() -> authService.login(dto, IP, AGENT))
-                    .isInstanceOf(BadCredentialsException.class);
+                    .isInstanceOf(AppException.class)
+                    .extracting(e -> ((AppException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.INVALID_CREDENTIALS);
         }
 
         @Test
