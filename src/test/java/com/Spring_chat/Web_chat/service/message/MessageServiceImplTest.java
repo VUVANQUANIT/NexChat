@@ -4,7 +4,7 @@ import com.Spring_chat.Web_chat.dto.ApiResponse;
 import com.Spring_chat.Web_chat.dto.message.DeliveredReceiptRequestDTO;
 import com.Spring_chat.Web_chat.dto.message.DeliveredReceiptResponseDTO;
 import com.Spring_chat.Web_chat.dto.message.MessageListResponseDTO;
-import com.Spring_chat.Web_chat.dto.message.MessageRowProjection;
+import com.Spring_chat.Web_chat.dto.message.MessageRowDTO;
 import com.Spring_chat.Web_chat.dto.message.ReadReceiptRequestDTO;
 import com.Spring_chat.Web_chat.dto.message.ReadReceiptResponseDTO;
 import com.Spring_chat.Web_chat.dto.message.SendMessageRequestDTO;
@@ -121,9 +121,9 @@ class MessageServiceImplTest {
             given(conversationParticipantRepository.findByConversation_IdAndUser_Id(conversationId, currentUser.getId()))
                     .willReturn(Optional.of(ConversationParticipant.builder().build()));
 
-            List<MessageRowProjection> mockRows = new ArrayList<>();
+            List<MessageRowDTO> mockRows = new ArrayList<>();
             for (int i = 0; i < 5; i++) {
-                MessageRowProjection row = mock(MessageRowProjection.class);
+                MessageRowDTO row = mock(MessageRowDTO.class);
                 given(row.getId()).willReturn((long) (i + 1));
                 given(row.getContent()).willReturn("Hello " + i);
                 given(row.getIsDeleted()).willReturn(false);
@@ -138,7 +138,7 @@ class MessageServiceImplTest {
                 mockRows.add(row);
             }
 
-            given(messageRepository.findLatestMessages(conversationId, currentUser.getId(), requestedLimit + 1))
+            given(messageRepository.findLatestMessages(org.mockito.ArgumentMatchers.eq(conversationId), org.mockito.ArgumentMatchers.eq(currentUser.getId()), org.mockito.ArgumentMatchers.any(org.springframework.data.domain.PageRequest.class)))
                     .willReturn(mockRows);
             given(messageDeliveryStatusRepo.findAllByMessage_IdIn(org.mockito.ArgumentMatchers.anyList()))
                     .willReturn(new ArrayList<>());
@@ -169,9 +169,9 @@ class MessageServiceImplTest {
                     .willReturn(Optional.of(ConversationParticipant.builder().build()));
             given(messageRepository.findCreatedAtByIdAndConversationId(beforeId, conversationId)).willReturn(Optional.of(beforeCreatedAt));
 
-            List<MessageRowProjection> mockRows = new ArrayList<>();
+            List<MessageRowDTO> mockRows = new ArrayList<>();
             for (int i = 0; i < 3; i++) {
-                MessageRowProjection row = mock(MessageRowProjection.class);
+                MessageRowDTO row = mock(MessageRowDTO.class);
                 if (i < 2) { // only first 2 rows are mapped
                     given(row.getId()).willReturn((long) (49 - i));
                     given(row.getContent()).willReturn("Msg " + i);
@@ -192,7 +192,12 @@ class MessageServiceImplTest {
             }
 
 
-            given(messageRepository.findMessagesBefore(conversationId, currentUser.getId(), beforeCreatedAt, beforeId, requestedLimit + 1))
+            given(messageRepository.findMessagesBefore(
+                    org.mockito.ArgumentMatchers.eq(conversationId), 
+                    org.mockito.ArgumentMatchers.eq(currentUser.getId()), 
+                    org.mockito.ArgumentMatchers.eq(beforeCreatedAt), 
+                    org.mockito.ArgumentMatchers.eq(beforeId), 
+                    org.mockito.ArgumentMatchers.any(org.springframework.data.domain.PageRequest.class)))
                     .willReturn(mockRows);
             given(messageDeliveryStatusRepo.findAllByMessage_IdIn(org.mockito.ArgumentMatchers.anyList()))
                     .willReturn(new ArrayList<>());
@@ -217,7 +222,7 @@ class MessageServiceImplTest {
             given(conversationParticipantRepository.findByConversation_IdAndUser_Id(conversationId, currentUser.getId()))
                     .willReturn(Optional.of(ConversationParticipant.builder().build()));
 
-            MessageRowProjection row = mock(MessageRowProjection.class);
+            MessageRowDTO row = mock(MessageRowDTO.class);
             given(row.getId()).willReturn(1L);
             given(row.getIsDeleted()).willReturn(true); 
             // Add other necessary stubs for toMessageSummary
@@ -229,10 +234,10 @@ class MessageServiceImplTest {
             given(row.getEditedAt()).willReturn(null);
             given(row.getMyStatus()).willReturn(MessageDeliveryStatus.SENT);
 
-            List<MessageRowProjection> mockRows = new ArrayList<>();
+            List<MessageRowDTO> mockRows = new ArrayList<>();
             mockRows.add(row);
 
-            given(messageRepository.findLatestMessages(anyLong(), anyLong(), anyInt()))
+            given(messageRepository.findLatestMessages(anyLong(), anyLong(), org.mockito.ArgumentMatchers.any(org.springframework.data.domain.PageRequest.class)))
                     .willReturn(mockRows);
             given(messageDeliveryStatusRepo.findAllByMessage_IdIn(org.mockito.ArgumentMatchers.anyList()))
                     .willReturn(new ArrayList<>());
@@ -276,15 +281,16 @@ class MessageServiceImplTest {
             given(currentUserProvider.findCurrentUserOrThrow()).willReturn(currentUser);
             given(conversationParticipantRepository.findByConversation_IdAndUser_Id(conversationId, currentUser.getId()))
                     .willReturn(Optional.of(ConversationParticipant.builder().build()));
-            given(messageRepository.findLatestMessages(anyLong(), anyLong(), anyInt()))
+            given(messageRepository.findLatestMessages(anyLong(), anyLong(), org.mockito.ArgumentMatchers.any(org.springframework.data.domain.PageRequest.class)))
                     .willReturn(new ArrayList<>());
 
             // When
             messageService.getMessageList(beforeId, requestedLimit, conversationId);
 
             // Then
-            // Verify that the repository is called with 100 + 1 instead of 150 + 1
-            verify(messageRepository).findLatestMessages(conversationId, currentUser.getId(), 101);
+            // Verify that the repository is called with pageRequest limits
+            org.springframework.data.domain.PageRequest expectedPageRequest = org.springframework.data.domain.PageRequest.of(0, 101);
+            verify(messageRepository).findLatestMessages(conversationId, currentUser.getId(), expectedPageRequest);
         }
 
         @Test
@@ -303,8 +309,8 @@ class MessageServiceImplTest {
                     .extracting(e -> ((AppException) e).getErrorCode())
                     .isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
 
-            verify(messageRepository, never()).findLatestMessages(anyLong(), anyLong(), anyInt());
-            verify(messageRepository, never()).findMessagesBefore(anyLong(), anyLong(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), anyInt());
+            verify(messageRepository, never()).findLatestMessages(anyLong(), anyLong(), org.mockito.ArgumentMatchers.any(org.springframework.data.domain.PageRequest.class));
+            verify(messageRepository, never()).findMessagesBefore(anyLong(), anyLong(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(org.springframework.data.domain.PageRequest.class));
         }
 
     }

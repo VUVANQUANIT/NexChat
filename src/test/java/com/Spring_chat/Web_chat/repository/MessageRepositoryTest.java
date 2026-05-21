@@ -1,6 +1,6 @@
 package com.Spring_chat.Web_chat.repository;
 
-import com.Spring_chat.Web_chat.dto.message.MessageRowProjection;
+import com.Spring_chat.Web_chat.dto.message.MessageRowDTO;
 import com.Spring_chat.Web_chat.entity.Conversation;
 import com.Spring_chat.Web_chat.entity.Message;
 import com.Spring_chat.Web_chat.entity.MessageHidden;
@@ -77,8 +77,9 @@ class MessageRepositoryTest {
         entityManager.clear();
 
         // Lấy danh sách tin nhắn
-        List<MessageRowProjection> messages = messageRepository.findLatestMessages(
-                conversation.getId(), sender.getId(), 10);
+        org.springframework.data.domain.PageRequest pageRequest = org.springframework.data.domain.PageRequest.of(0, 10);
+        List<MessageRowDTO> messages = messageRepository.findLatestMessages(
+                conversation.getId(), sender.getId(), pageRequest);
 
 
         assertThat(messages).hasSize(3);
@@ -104,8 +105,9 @@ class MessageRepositoryTest {
         // Lấy tin nhắn cũ hơn m3 (beforeId = m3.getId())
         Instant beforeCreatedAt = messageRepository.findCreatedAtByIdAndConversationId(m3.getId(), conversation.getId())
                 .orElseThrow();
-        List<MessageRowProjection> messages = messageRepository.findMessagesBefore(
-                conversation.getId(), sender.getId(), beforeCreatedAt, m3.getId(), 2);
+        org.springframework.data.domain.PageRequest pageRequest = org.springframework.data.domain.PageRequest.of(0, 10);
+        List<MessageRowDTO> messages = messageRepository.findMessagesBefore(
+                conversation.getId(), sender.getId(), beforeCreatedAt, m3.getId(), pageRequest);
 
 
         // Tin nhắn trả về phải là m2 và m1, bỏ qua m4 và m3
@@ -128,10 +130,11 @@ class MessageRepositoryTest {
         entityManager.flush();
         entityManager.clear();
 
-        List<MessageRowProjection> messages = messageRepository.findLatestMessages(
-                conversation.getId(), sender.getId(), 10);
+        org.springframework.data.domain.PageRequest pageRequest = org.springframework.data.domain.PageRequest.of(0, 10);
+        List<MessageRowDTO> messages = messageRepository.findLatestMessages(
+                conversation.getId(), sender.getId(), pageRequest);
 
-        assertThat(messages).extracting(MessageRowProjection::getId)
+        assertThat(messages).extracting(MessageRowDTO::getId)
                 .containsExactly(visible.getId());
     }
 
