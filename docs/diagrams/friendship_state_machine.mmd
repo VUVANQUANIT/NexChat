@@ -17,11 +17,10 @@ stateDiagram-v2
 
     ACCEPTED --> NONE: Một trong hai người thực hiện hủy kết bạn (Unfriend)
     
-    %% Trạng thái Block có thể xảy ra bất cứ lúc nào
-    NONE --> BLOCKED: Người A chặn Người B (hoặc ngược lại)
-    PENDING --> BLOCKED: Chặn khi đang chờ
-    ACCEPTED --> BLOCKED: Chặn khi đang là bạn bè
-    REJECTED --> BLOCKED: Chặn sau khi từ chối
-
-    BLOCKED --> NONE: Bỏ chặn (Unblock)
-    BLOCKED --> [*]
+    note right of NONE
+        Cơ chế Chặn (Blocking System):
+        Được thiết kế tách biệt hoàn toàn (bảng blocked_users)
+        so với trạng thái Bạn bè (bảng friendships) để tránh mất mát dữ liệu.
+        - Khi Chặn: Trạng thái Bạn bè giữ nguyên, bản ghi mới được tạo trong blocked_users.
+        - Khi Bỏ chặn: Xóa bản ghi trong blocked_users, khôi phục nguyên vẹn trạng thái Bạn bè cũ.
+    end note

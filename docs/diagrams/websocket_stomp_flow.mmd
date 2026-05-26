@@ -1,19 +1,30 @@
 sequenceDiagram
     autonumber
     actor Client as 📱 Client
+    participant API as 🌐 REST API Service
+    participant Cache as ⚡ Redis/Cache
     participant Interceptor as 🛡️ WebSocket Handshake Interceptor
     participant Manager as ⚙️ WebSocket Handler / SessionManager
     
-    Client->>Interceptor: HTTP GET ws://domain.com/ws?token=JWT_Access_Token
-    Note over Interceptor: Trích xuất JWT từ Query Parameter 'token'
-    alt Token Hợp lệ
-        Interceptor->>Interceptor: Giải mã JWT, lấy User ID & Username
+    Note over Client, API: Bước 1: Trao đổi lấy Ticket ngắn hạn (One-Time Ticket)
+    Client->>API: POST /api/ws/tickets (Header: Authorization: Bearer JWT)
+    API->>API: Xác thực JWT & Tạo Ticket ngẫu nhiên (UUID)
+    API->>Cache: Lưu Ticket -> User ID (Hết hạn sau 15 giây)
+    API-->>Client: Trả về ticket_id (UUID)
+    
+    Note over Client, Interceptor: Bước 2: Thiết lập kết nối WebSocket với Ticket
+    Client->>Interceptor: HTTP GET ws://domain.com/ws?ticket=ticket_id
+    Note over Interceptor: Trích xuất ticket_id từ Query Parameter
+    Interceptor->>Cache: Xác thực và Xóa Ticket ngay lập tức (One-Time Use)
+    alt Ticket Hợp lệ
+        Cache-->>Interceptor: Trả về thông tin User ID & Username
         Interceptor->>Interceptor: Tạo StompPrincipal mới
         Interceptor-->>Client: Chấp nhận Handshake (HTTP 101 Switching Protocols)
         Interceptor->>Manager: Đăng ký Session + StompPrincipal
         Client->>Manager: STOMP CONNECT Frame
         Manager-->>Client: STOMP CONNECTED Frame
-    else Token Không hợp lệ / Hết hạn
+    else Ticket Không hợp lệ / Đã sử dụng / Hết hạn
+        Cache-->>Interceptor: Không tìm thấy ticket
         Interceptor-->>Client: Từ chối kết nối (HTTP 401 Unauthorized)
     end
     

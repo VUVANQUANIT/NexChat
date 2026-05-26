@@ -28,7 +28,7 @@ graph TD
 
     %% Connections
     Client -- "HTTPS (REST API)" --> Security
-    Client -- "WSS (WebSocket Handshake + query token)" --> Security
+    Client -- "WSS (WebSocket Handshake + query ticket)" --> Security
     Security --> Controller
     Controller --> Service
     Service -- "JPA/Hibernate" --> Database
