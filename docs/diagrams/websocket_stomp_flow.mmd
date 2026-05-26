@@ -1,0 +1,27 @@
+sequenceDiagram
+    autonumber
+    actor Client as 📱 Client
+    participant Interceptor as 🛡️ WebSocket Handshake Interceptor
+    participant Manager as ⚙️ WebSocket Handler / SessionManager
+    
+    Client->>Interceptor: HTTP GET ws://domain.com/ws?token=JWT_Access_Token
+    Note over Interceptor: Trích xuất JWT từ Query Parameter 'token'
+    alt Token Hợp lệ
+        Interceptor->>Interceptor: Giải mã JWT, lấy User ID & Username
+        Interceptor->>Interceptor: Tạo StompPrincipal mới
+        Interceptor-->>Client: Chấp nhận Handshake (HTTP 101 Switching Protocols)
+        Interceptor->>Manager: Đăng ký Session + StompPrincipal
+        Client->>Manager: STOMP CONNECT Frame
+        Manager-->>Client: STOMP CONNECTED Frame
+    else Token Không hợp lệ / Hết hạn
+        Interceptor-->>Client: Từ chối kết nối (HTTP 401 Unauthorized)
+    end
+    
+    Note over Client, Manager: Luồng đăng ký nhận tin nhắn realtime
+    Client->>Manager: SUBSCRIBE /topic/conversations/{conversationId}
+    Note over Manager: Kiểm tra quyền tham gia hội thoại của StompPrincipal
+    alt Là thành viên hội thoại
+        Manager-->>Client: SUBSCRIBE SUCCESS
+    else Không có quyền
+        Manager-->>Client: STOMP ERROR Frame (Access Denied)
+    end

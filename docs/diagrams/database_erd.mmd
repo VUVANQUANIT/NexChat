@@ -1,0 +1,74 @@
+erDiagram
+    users {
+        bigint id PK
+        varchar username UK "Indexed"
+        varchar email UK "Indexed"
+        varchar password_hash
+        varchar status "ACTIVE / INACTIVE / BANNED"
+        timestamptz last_seen "Quản lý online/offline"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    friendships {
+        bigint id PK
+        bigint requester_id FK "Liên kết users"
+        bigint addressee_id FK "Liên kết users"
+        varchar status "PENDING / ACCEPTED / REJECTED / BLOCKED"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    conversations {
+        bigint id PK
+        varchar type "PRIVATE / GROUP"
+        varchar title "Tên nhóm (bắt buộc với GROUP)"
+        varchar avatar_url "Ảnh nhóm"
+        bigint owner_id FK "Người tạo group"
+        timestamptz created_at
+        timestamptz updated_at
+        varchar status "ACTIVE / DELETED"
+    }
+
+    conversation_participants {
+        bigint id PK
+        bigint conversation_id FK
+        bigint user_id FK
+        bigint last_read_message_id FK "Tin nhắn cuối cùng user đã đọc"
+        timestamptz joined_at
+        timestamptz left_at "Hỗ trợ rời nhóm và lưu lịch sử cũ"
+    }
+
+    messages {
+        bigint id PK
+        bigint conversation_id FK
+        bigint sender_id FK
+        text content "Nội dung tin nhắn"
+        varchar type "TEXT / IMAGE / FILE / VOICE / SYSTEM"
+        bigint reply_to_id FK "Self-reference cho luồng Reply"
+        varchar client_message_id "Idempotency key từ Client"
+        boolean is_deleted "Xóa mềm (Soft delete)"
+        timestamptz created_at "Indexed"
+        timestamptz updated_at
+    }
+
+    message_statuses {
+        bigint id PK
+        bigint message_id FK
+        bigint user_id FK
+        varchar status "SENT / DELIVERED / SEEN"
+        timestamptz updated_at
+    }
+
+    %% Relationships
+    users ||--o{ friendships : "initiates (requester)"
+    users ||--o{ friendships : "receives (addressee)"
+    users ||--o{ conversation_participants : "participates"
+    users ||--o{ messages : "sends"
+    users ||--o{ message_statuses : "has status tracker"
+
+    conversations ||--o{ conversation_participants : "contains"
+    conversations ||--o{ messages : "has"
+
+    messages ||--o{ message_statuses : "tracked by"
+    messages ||--o| messages : "replies_to"

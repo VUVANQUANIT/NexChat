@@ -1,0 +1,27 @@
+stateDiagram-v2
+    [*] --> NONE: Chưa có mối quan hệ
+
+    NONE --> PENDING: Người A gửi lời mời kết bạn (requester)
+    
+    state PENDING {
+        [*] --> Gửi_Lời_Mời
+        Gửi_Lời_Mời --> Chờ_Phản_Hồi
+    }
+
+    PENDING --> ACCEPTED: Người B chấp nhận (addressee)
+    PENDING --> REJECTED: Người B từ chối (addressee)
+    PENDING --> NONE: Người A rút lại lời mời
+
+    REJECTED --> PENDING: Gửi lại lời mời mới sau một khoảng thời gian
+    REJECTED --> NONE: Xóa bản ghi / Đặt lại
+
+    ACCEPTED --> NONE: Một trong hai người thực hiện hủy kết bạn (Unfriend)
+    
+    %% Trạng thái Block có thể xảy ra bất cứ lúc nào
+    NONE --> BLOCKED: Người A chặn Người B (hoặc ngược lại)
+    PENDING --> BLOCKED: Chặn khi đang chờ
+    ACCEPTED --> BLOCKED: Chặn khi đang là bạn bè
+    REJECTED --> BLOCKED: Chặn sau khi từ chối
+
+    BLOCKED --> NONE: Bỏ chặn (Unblock)
+    BLOCKED --> [*]

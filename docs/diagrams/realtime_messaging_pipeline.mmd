@@ -1,0 +1,36 @@
+sequenceDiagram
+    autonumber
+    actor ClientA as 📱 Client A (Sender)
+    participant Broker as 📡 STOMP Broker / Controller
+    participant MessageService as ⚙️ MessageService (Transactional)
+    participant DB as 🗄️ Database
+    participant EventPub as 📢 Event Publisher
+    participant EventListener as 👂 Transactional Event Listener
+    actor ClientB as 📱 Client B (Receiver)
+
+    ClientA->>Broker: Gửi tin qua STOMP /app/messages.send hoặc REST API
+    Broker->>MessageService: Gọi sendMessage(conversationId, requestDTO)
+    
+    Note over MessageService: Kiểm tra quyền & Trạng thái cuộc hội thoại
+    Note over MessageService: Kiểm tra Idempotency Key (clientMessageId)
+    
+    alt Idempotency Key tồn tại trong DB/Cache
+        MessageService->>DB: Tìm kiếm tin nhắn trùng khớp gần đây
+        DB-->>MessageService: Trả về tin nhắn đã gửi trước đó
+        MessageService-->>ClientA: Trả về tin nhắn cũ (201 Created - Idempotent)
+    else Key hợp lệ / Chưa tồn tại
+        Note over MessageService: Bắt đầu DB Transaction
+        MessageService->>DB: Lưu bản ghi Message (Trạng thái: PENDING)
+        MessageService->>DB: Tạo bản ghi MessageStatus (SENT) cho tất cả thành viên
+        MessageService->>DB: Lưu kết quả xử lý Idempotency
+        MessageService->>EventPub: Publish MessageCreatedEvent
+        
+        Note over MessageService, DB: Đóng DB Transaction (COMMIT)
+        DB-->>MessageService: Commit thành công!
+        
+        Note over EventListener: Event Listener được kích hoạt sau khi Commit thành công<br/>@TransactionalEventListener(phase = AFTER_COMMIT)
+        
+        EventListener->>Broker: Chuyển payload tin nhắn dạng MESSAGE_NEW
+        Broker->>ClientB: Đẩy realtime qua WebSocket /topic/conversations/{id}
+        Broker->>ClientA: Đẩy realtime thông báo thành công (MESSAGE_NEW)
+    end
