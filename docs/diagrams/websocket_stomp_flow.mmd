@@ -1,0 +1,38 @@
+sequenceDiagram
+    autonumber
+    actor Client as 📱 Client
+    participant API as 🌐 REST API Service
+    participant Cache as ⚡ Redis/Cache
+    participant Interceptor as 🛡️ WebSocket Handshake Interceptor
+    participant Manager as ⚙️ WebSocket Handler / SessionManager
+    
+    Note over Client, API: Bước 1: Trao đổi lấy Ticket ngắn hạn (One-Time Ticket)
+    Client->>API: POST /api/ws/tickets (Header: Authorization: Bearer JWT)
+    API->>API: Xác thực JWT & Tạo Ticket ngẫu nhiên (UUID)
+    API->>Cache: Lưu Ticket -> User ID (Hết hạn sau 15 giây)
+    API-->>Client: Trả về ticket_id (UUID)
+    
+    Note over Client, Interceptor: Bước 2: Thiết lập kết nối WebSocket với Ticket
+    Client->>Interceptor: HTTP GET ws://domain.com/ws?ticket=ticket_id
+    Note over Interceptor: Trích xuất ticket_id từ Query Parameter
+    Interceptor->>Cache: Xác thực và Xóa Ticket ngay lập tức (One-Time Use)
+    alt Ticket Hợp lệ
+        Cache-->>Interceptor: Trả về thông tin User ID & Username
+        Interceptor->>Interceptor: Tạo StompPrincipal mới
+        Interceptor-->>Client: Chấp nhận Handshake (HTTP 101 Switching Protocols)
+        Interceptor->>Manager: Đăng ký Session + StompPrincipal
+        Client->>Manager: STOMP CONNECT Frame
+        Manager-->>Client: STOMP CONNECTED Frame
+    else Ticket Không hợp lệ / Đã sử dụng / Hết hạn
+        Cache-->>Interceptor: Không tìm thấy ticket
+        Interceptor-->>Client: Từ chối kết nối (HTTP 401 Unauthorized)
+    end
+    
+    Note over Client, Manager: Luồng đăng ký nhận tin nhắn realtime
+    Client->>Manager: SUBSCRIBE /topic/conversations/{conversationId}
+    Note over Manager: Kiểm tra quyền tham gia hội thoại của StompPrincipal
+    alt Là thành viên hội thoại
+        Manager-->>Client: SUBSCRIBE SUCCESS
+    else Không có quyền
+        Manager-->>Client: STOMP ERROR Frame (Access Denied)
+    end

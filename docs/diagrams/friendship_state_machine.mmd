@@ -1,0 +1,26 @@
+stateDiagram-v2
+    [*] --> NONE: Chưa có mối quan hệ
+
+    NONE --> PENDING: Người A gửi lời mời kết bạn (requester)
+    
+    state PENDING {
+        [*] --> Gửi_Lời_Mời
+        Gửi_Lời_Mời --> Chờ_Phản_Hồi
+    }
+
+    PENDING --> ACCEPTED: Người B chấp nhận (addressee)
+    PENDING --> REJECTED: Người B từ chối (addressee)
+    PENDING --> NONE: Người A rút lại lời mời
+
+    REJECTED --> PENDING: Gửi lại lời mời mới sau một khoảng thời gian
+    REJECTED --> NONE: Xóa bản ghi / Đặt lại
+
+    ACCEPTED --> NONE: Một trong hai người thực hiện hủy kết bạn (Unfriend)
+    
+    note right of NONE
+        Cơ chế Chặn (Blocking System):
+        Được thiết kế tách biệt hoàn toàn (bảng blocked_users)
+        so với trạng thái Bạn bè (bảng friendships) để tránh mất mát dữ liệu.
+        - Khi Chặn: Trạng thái Bạn bè giữ nguyên, bản ghi mới được tạo trong blocked_users.
+        - Khi Bỏ chặn: Xóa bản ghi trong blocked_users, khôi phục nguyên vẹn trạng thái Bạn bè cũ.
+    end note

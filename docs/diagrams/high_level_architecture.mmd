@@ -1,0 +1,43 @@
+graph TD
+    %% Styling
+    classDef client fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
+    classDef gateway fill:#ede7f6,stroke:#5e35b1,stroke-width:2px;
+    classDef app fill:#f1f8e9,stroke:#558b2f,stroke-width:2px;
+    classDef db fill:#fff3e0,stroke:#ef6c00,stroke-width:2px;
+    classDef ext fill:#eceff1,stroke:#37474f,stroke-width:2px;
+
+    %% Nodes
+    Client["📱 Client App<br/>(Web/Mobile/Desktop)"]:::client
+    
+    subgraph Spring Boot Monolith
+        Security["🔐 Spring Security Filter<br/>(Stateless JWT / WS interceptor)"]:::gateway
+        Controller["🎮 Controller Layer<br/>(REST & WebSocket Mappings)"]:::app
+        Service["⚙️ Service Layer<br/>(Business Logic & Validation)"]:::app
+        EventPub["📢 Application Event Publisher"]:::app
+        EventListener["👂 Transactional Event Listeners<br/>(Phase: AFTER_COMMIT)"]:::app
+        StompBroker["📡 STOMP Broker<br/>(In-Memory Message Broker)"]:::app
+    end
+
+    Database[("🗄️ PostgreSQL Database<br/>(Users, Friendships, Conversations, Messages, Status)")]:::db
+    
+    subgraph Future Upgrades [Hạ tầng nâng cấp định hướng]
+        Redis[("🔴 Redis Cache & Session Store<br/>(Presence, Blacklist, Limiter)")]:::ext
+        RabbitMQ["🟠 RabbitMQ MQ<br/>(Notification & Async Tasks)"]:::ext
+        Kafka["🟡 Kafka Event Streaming<br/>(Audit log & Analytics)"]:::ext
+    end
+
+    %% Connections
+    Client -- "HTTPS (REST API)" --> Security
+    Client -- "WSS (WebSocket Handshake + query ticket)" --> Security
+    Security --> Controller
+    Controller --> Service
+    Service -- "JPA/Hibernate" --> Database
+    Service -- "1. Publish Event" --> EventPub
+    EventPub -- "2. Notify (Async/Sync)" --> EventListener
+    EventListener -- "3. Broadcast (MESSAGE_NEW, etc.)" --> StompBroker
+    StompBroker -- "WebSocket Frame push" --> Client
+
+    %% Potential upgrades mapping
+    Service -.-> Redis
+    Service -.-> RabbitMQ
+    Service -.-> Kafka
