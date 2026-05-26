@@ -5,16 +5,16 @@ sequenceDiagram
     participant DB as 🗄️ Database
     
     Note over Client, DB: Kịch bản A: Yêu cầu cấp lại Access Token hợp lệ
-    Client->>Auth: POST /api/auth/refresh { refresh_token: "Token_A" }
+    Client->>Auth: POST /api/auth/refresh { refreshToken: "Token_A" }
     Auth->>DB: Truy vấn & Kiểm tra tính hợp lệ của Token_A
     DB-->>Auth: Token_A hợp lệ (Chưa bị sử dụng, chưa hết hạn)
     Auth->>DB: Thu hồi Token_A (Đánh dấu đã dùng)
     Auth->>DB: Sinh & Lưu trữ Refresh Token mới (Token_B)
     Auth->>Auth: Sinh Access Token mới (Access_B)
-    Auth-->>Client: Trả về { access_token: "Access_B", refresh_token: "Token_B" }
+    Auth-->>Client: Trả về { accessToken: "Access_B", refreshToken: "Token_B" }
     
     Note over Client, DB: Kịch bản B: Phát hiện sử dụng lại Token cũ (Reuse / Replay Attack)
-    Client->>Auth: POST /api/auth/refresh { refresh_token: "Token_A" } (Hacker gửi lại Token_A đã dùng)
+    Client->>Auth: POST /api/auth/refresh { refreshToken: "Token_A" } (Hacker gửi lại Token_A đã dùng)
     Auth->>DB: Truy vấn Token_A
     DB-->>Auth: Token_A đã được sử dụng trước đó!
     Note over Auth: 🚨 Cảnh báo bảo mật: Phát hiện xâm nhập!

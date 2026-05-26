@@ -12,12 +12,13 @@ erDiagram
 
     friendships {
         bigint id PK
-        bigint requester_id FK "Liên kết users"
-        bigint addressee_id FK "Liên kết users"
+        bigint requester_id FK,UK "Liên kết users — UK cùng addressee_id"
+        bigint addressee_id FK,UK "Liên kết users — UK cùng requester_id"
         varchar status "PENDING / ACCEPTED / REJECTED / BLOCKED"
         timestamptz created_at
         timestamptz updated_at
     }
+    %% UNIQUE CONSTRAINT: (requester_id, addressee_id) — ngăn gửi trùng lời mời
 
     conversations {
         bigint id PK
@@ -60,12 +61,25 @@ erDiagram
         timestamptz updated_at
     }
 
+    %% ── Bảng blocked_users (Kế hoạch kiến trúc — chưa triển khai)
+    %% Thiết kế tách biệt khỏi friendships để tránh mất dữ liệu khi Unblock.
+    %% Hiện tại BLOCKED vẫn là trạng thái trong bảng friendships (cần refactor).
+    blocked_users {
+        bigint id PK
+        bigint blocker_id FK "Liên kết users — người thực hiện chặn"
+        bigint blocked_id FK "Liên kết users — người bị chặn"
+        timestamptz created_at
+    }
+    %% UNIQUE CONSTRAINT: (blocker_id, blocked_id) — không thể chặn cùng 1 người 2 lần
+
     %% Relationships
     users ||--o{ friendships : "initiates (requester)"
     users ||--o{ friendships : "receives (addressee)"
     users ||--o{ conversation_participants : "participates"
     users ||--o{ messages : "sends"
     users ||--o{ message_statuses : "has status tracker"
+    users ||--o{ blocked_users : "blocks (blocker)"
+    users ||--o{ blocked_users : "blocked by (blocked)"
 
     conversations ||--o{ conversation_participants : "contains"
     conversations ||--o{ messages : "has"

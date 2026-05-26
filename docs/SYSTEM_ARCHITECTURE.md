@@ -66,7 +66,7 @@ Dựa theo nguyên tắc của **Senior Backend Engineer**, hệ thống giải 
 
 1. **Race Conditions trong gửi tin nhắn trùng (Duplicate Send):**
    - Sự kết hợp giữa `clientMessageId` + `conversationId` + `senderId` tạo ra một khóa định danh duy nhất (Idempotency Key).
-   - Hệ thống cố gắng lấy khóa này trước khi thực hiện Transaction. Nếu khóa đã tồn tại trong DB, hệ thống từ chối ghi đè và trả lại trực tiếp bản ghi tin nhắn cũ để tránh trùng lặp tin nhắn khi Client bị lag mạng và ấn gửi nhiều lần.
+   - Hệ thống sử dụng **Redis `SET NX` (setIfAbsent)** — một thao tác **nguyên tử (atomic)** — để chiếm giữ khóa trước khi bắt đầu Transaction. Vì `SET NX` là một lệnh Redis đơn, không thể bị tách ra bởi bất kỳ luồng nào khác (không có khoảng thời gian kiểm tra rồi mới ghi như kiểu TOCTOU). Nếu 2 request đến đồng thời với cùng `clientMessageId`, chỉ đúng 1 request chiếm được khóa và tiến hành ghi DB; request còn lại nhận kết quả `false` ngay lập tức và được trả về bản ghi cũ một cách an toàn.
 
 2. **Race Conditions trong tính toán unreadCount:**
    - Trường `last_read_message_id` trong `conversation_participants` được cập nhật trực tiếp qua câu lệnh UPDATE chỉ mục để so sánh ID tin nhắn thay vì kéo dữ liệu về RAM để tăng giảm thủ công, giúp tránh hiện tượng ghi đè chéo (Lost Update) khi người dùng mở app trên nhiều thiết bị cùng lúc.

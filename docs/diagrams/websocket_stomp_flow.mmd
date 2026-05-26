@@ -10,11 +10,11 @@ sequenceDiagram
     Client->>API: POST /api/ws/tickets (Header: Authorization: Bearer JWT)
     API->>API: Xác thực JWT & Tạo Ticket ngẫu nhiên (UUID)
     API->>Cache: Lưu Ticket -> User ID (Hết hạn sau 15 giây)
-    API-->>Client: Trả về ticket_id (UUID)
+    API-->>Client: Trả về { ticketId: "UUID" }
     
     Note over Client, Interceptor: Bước 2: Thiết lập kết nối WebSocket với Ticket
-    Client->>Interceptor: HTTP GET ws://domain.com/ws?ticket=ticket_id
-    Note over Interceptor: Trích xuất ticket_id từ Query Parameter
+    Client->>Interceptor: HTTP GET ws://domain.com/ws?ticket=ticketId
+    Note over Interceptor: Trích xuất ticketId từ Query Parameter
     Interceptor->>Cache: Xác thực và Xóa Ticket ngay lập tức (One-Time Use)
     alt Ticket Hợp lệ
         Cache-->>Interceptor: Trả về thông tin User ID & Username
